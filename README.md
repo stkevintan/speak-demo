@@ -8,7 +8,7 @@ Create the environment file and start the stack:
 ```sh
 cp .env.example .env
 # Edit .env with LiveKit credentials and model configuration.
-docker compose up -d
+docker compose up --build -d
 ```
 
 Open `http://localhost:5173`.
