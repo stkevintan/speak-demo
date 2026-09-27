@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: #fff7f2;
+  --color-ink: #1b1633;
+  --color-body: #3d3659;
+  --color-muted: #66617c;
+  --color-line: #efeaf6;
+  --color-coral: #ff6b4a;
+  --color-coral-soft: #ffe7e0;
+  --color-coral-ink: #b23a1a;
+  --color-violet: #7c5cff;
+  --color-violet-deep: #6a44f0;
+  --color-violet-soft: #ece7ff;
+  --color-violet-ink: #5b3fd6;
+  --color-teal: #12c8a0;
+  --color-teal-soft: #d9f7ef;
+  --color-teal-ink: #08735a;
+  --color-sun: #ffc93c;
+  --color-sun-soft: #fff3d4;
+  --color-sun-ink: #8a6013;
+  --color-sky: #3dbdff;
+  --color-sky-soft: #ddf1ff;
+  --color-sky-ink: #1a6a99;
+  --color-pink: #ff7ac6;
+  --color-pink-soft: #ffe4f3;
+  --color-pink-ink: #a8347f;
+  --font-rounded: ui-rounded, "SF Pro Rounded", "Nunito", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --shadow-card: 0 10px 30px rgb(27 22 51 / 0.08);
+}
+
+@layer base {
+  body {
+    margin: 0;
+    min-width: 320px;
+    color: var(--color-ink);
+    font-family: var(--font-rounded);
+    background:
+      radial-gradient(900px 520px at 8% 0%, #ffe7e0, transparent 62%),
+      radial-gradient(760px 480px at 100% 0%, #ece7ff, transparent 58%),
+      var(--color-canvas);
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, textarea { font: inherit; }
+  button, a, input, textarea { -webkit-tap-highlight-color: transparent; }
+  button:not(:disabled), summary { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--color-violet-ink); outline-offset: 4px; }
+  button:disabled { cursor: not-allowed; opacity: .6; }
+  ::selection { background: var(--color-violet-soft); color: var(--color-ink); }
+}
+
+@layer components {
+  .panel { @apply rounded-[28px] bg-white p-6 shadow-card; }
+  .button { @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-extrabold transition-colors; }
+  .button-primary { @apply bg-gradient-to-br from-coral to-[#ff9166] text-ink; }
+  .button-secondary { @apply bg-white text-body shadow-card hover:bg-violet-soft; }
+  .icon-button { @apply inline-flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white text-body shadow-card; }
+  .pill { @apply inline-flex items-center gap-2 rounded-full bg-violet-soft px-4 py-2 text-xs font-extrabold text-violet-ink; }
+  .heading { @apply text-3xl font-black tracking-tight sm:text-4xl; }
+  .eyebrow { @apply text-xs font-black uppercase tracking-wider text-muted; }
+  .wave-bar { animation: wave 1s ease-in-out infinite alternate; }
+}
+
+@keyframes wave { from { transform: scaleY(.35); } to { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
