@@ -31,7 +31,7 @@ test("commands retry with identical IDs/bodies and settle only their correlated 
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const h = setup(t);
   const promise = h.live.command({ type: "learner.text", payload: { text: "Hello" } });
-  t.mock.timers.tick(4000);
+  t.mock.timers.tick(2000);
   assert.equal(h.commands.length, 2);
   assert.deepEqual(h.commands[0], h.commands[1]);
   assert.equal(h.commands[0]?.seq, 0);
@@ -62,7 +62,7 @@ test("sync settles on replay, not on an accepted command ack", async t => {
   const commandId = h.commands[0]?.id;
   const ack = { v: 1, sessionId: "session-1", id: "sync-ack", seq: 1, type: "command.ack", payload: { commandId, status: "accepted" } };
   h.receive(ack);
-  t.mock.timers.tick(4000);
+  t.mock.timers.tick(2000);
   assert.equal(h.commands.length, 2);
   h.receive({
     v: 1, sessionId: "session-1", id: "replay", seq: 1, type: "session.replay",
@@ -78,9 +78,9 @@ test("terminal command timeout is explicit and does not manufacture success", as
   const h = setup(t);
   const pending = h.live.command({ type: "learner.text", payload: { text: "Hello" } });
   const rejected = assert.rejects(pending, /hasn't confirmed/);
-  t.mock.timers.tick(4000);
-  t.mock.timers.tick(4000);
-  t.mock.timers.tick(4000);
+  t.mock.timers.tick(2000);
+  t.mock.timers.tick(2000);
+  t.mock.timers.tick(2000);
   await rejected;
   assert.equal(h.commands.length, 3);
 });

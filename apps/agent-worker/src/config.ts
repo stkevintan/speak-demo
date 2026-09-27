@@ -14,6 +14,8 @@ const Environment = z.object({
   STT_MODEL: z.string().min(1),
   LLM_MODEL: z.string().min(1),
   COACH_LLM_MODEL: z.string().min(1),
+  COACH_API_KEY: z.string().min(1).optional(),
+  COACH_BASE_URL: z.url().default("https://api.openai.com/v1"),
   TTS_MODEL: z.string().min(1),
   TTS_VOICE: z.string().min(1).optional(),
   TURN_PATIENCE_MS_A2: positive(2000),

@@ -12,9 +12,9 @@ export const accents = {
   pink: { fill: "#ff7ac6", soft: "#ffe4f3", ink: "#a8347f" },
 };
 
-export function Shell({ children, header }: { children: ReactNode; header?: ReactNode }) {
+export function Shell({ children, header, scrollable = true }: { children: ReactNode; header?: ReactNode; scrollable?: boolean }) {
   return (
-    <div className="mx-auto flex h-dvh max-h-dvh min-h-0 max-w-[1600px] flex-col overflow-hidden px-4 pb-8 sm:px-8 lg:px-11">
+    <div className={`mx-auto flex h-dvh max-h-dvh min-h-0 max-w-[1600px] flex-col px-4 pb-8 sm:px-8 lg:px-11 ${scrollable ? "overflow-y-auto" : "overflow-hidden"}`}>
       <header className="flex min-h-20 shrink-0 flex-wrap items-center gap-3 py-3">
         <Link to="/scenes" className="flex min-h-11 items-center gap-2 text-xl font-black tracking-tight" aria-label="Rehearsal home">
           <Pip size={36} /> Rehearsal

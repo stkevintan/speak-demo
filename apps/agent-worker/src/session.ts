@@ -265,7 +265,7 @@ export class Session {
   async idle(): Promise<void> {
     if (this.ending || !this.ready || this.current.snapshot.state !== "listening" || this.detector.hasPending) return;
     const elapsed = this.time.now() - this.idleSince;
-    if (elapsed >= 4000 && this.current.snapshot.preferences.suggestions && !this.offeredSuggestions && !this.suggesting) {
+    if (elapsed >= 2000 && this.current.snapshot.preferences.suggestions && !this.offeredSuggestions && !this.suggesting) {
       this.offeredSuggestions = true;
       this.suggesting = true;
       const generation = this.generation;
@@ -277,7 +277,9 @@ export class Session {
             await this.emit({ type: "suggestions", payload });
           }
         });
-      } catch { this.log("coach.suggestions_failed"); }
+      } catch (error) {
+        this.log("coach.suggestions_failed", { error: error instanceof Error ? error.message : String(error) });
+      }
       finally { this.suggesting = false; }
     }
     if (elapsed >= 30000 && !this.reengaged && !this.ending && !this.detector.hasPending && this.current.snapshot.state === "listening") {
@@ -358,7 +360,11 @@ export class Session {
             if (this.coach.admit(card, turnNumber)) await this.emit({ type: "coach.card", payload: card });
           }
         });
-      } catch { this.log(this.ending ? "coach.cancelled_on_end" : "coach.assessment_failed", { turnId: turn.turnId }); }
+      } catch (error) {
+        this.log(this.ending ? "coach.cancelled_on_end" : "coach.assessment_failed", {
+          turnId: turn.turnId, error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }).finally(() => { this.coachPending--; });
   }
 

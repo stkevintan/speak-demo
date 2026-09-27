@@ -28,6 +28,7 @@ export function Live({ profile }: { profile: Profile }) {
   const sendLock = useRef(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const transcript = useRef<HTMLDivElement>(null);
+  const coachPanel = useRef<HTMLDivElement>(null);
   const [following, setFollowing] = useState(true);
   const followReleaseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const composer = useRef<HTMLTextAreaElement>(null);
@@ -64,6 +65,13 @@ export function Live({ profile }: { profile: Profile }) {
     });
     return () => cancelAnimationFrame(frame);
   }, [following, state.snapshot.transcript]);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      coachPanel.current?.scrollTo({ top: coachPanel.current.scrollHeight, behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [state.snapshot.cards.length, Boolean(state.snapshot.suggestions)]);
 
   useEffect(() => () => clearTimeout(followReleaseTimer.current), []);
 
@@ -135,7 +143,7 @@ export function Live({ profile }: { profile: Profile }) {
   const suggestions = state.snapshot.preferences.suggestions ? state.snapshot.suggestions : null;
   const transcriptTurns = state.snapshot.transcript;
   return (
-    <Shell header={<><span className="pill hidden sm:inline-flex">{course.title}</span><span className="pill">{level}</span><Settings profile={profile} live /></>}>
+    <Shell scrollable={false} header={<><span className="pill hidden sm:inline-flex">{course.title}</span><span className="pill">{level}</span><Settings profile={profile} live /></>}>
       {state.problem && <Problem message={state.problem} />}
       {actionError && <Problem message={actionError} />}
       {finish.error && <Problem message={errorMessage(finish.error)} retry={() => { void end(); }} />}
@@ -154,7 +162,7 @@ export function Live({ profile }: { profile: Profile }) {
           <button className="button button-secondary" onClick={() => { void live.current?.startAudio(); }}>Enable audio</button>
         </div>
       )}
-      <div className="grid min-h-0 flex-1 items-stretch gap-5 overflow-hidden xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
+      <div className="grid min-h-0 flex-1 items-stretch gap-3 overflow-hidden md:grid-cols-[minmax(0,1fr)_minmax(260px,32%)] xl:gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
         <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
           <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[32px] bg-gradient-to-br from-white via-[#fbf7ff] to-[#fff6f1] p-5 shadow-card sm:p-7">
             <header className="flex flex-wrap items-center gap-4 border-b-2 border-line pb-5">
@@ -212,7 +220,6 @@ export function Live({ profile }: { profile: Profile }) {
             <div className="flex flex-wrap items-center gap-2">
               <button className={`icon-button ${state.mic ? "bg-teal-soft text-teal-ink" : ""}`} disabled={!available} aria-label={state.mic ? "Mute microphone" : "Fix my mic or switch to voice"} aria-pressed={state.mic} onClick={() => { void live.current?.setMic(!state.mic); }}>{state.mic ? <Mic size={21} /> : <MicOff size={21} />}</button>
               <button className={`icon-button ${state.mode === "typing" ? "bg-violet-soft text-violet-ink" : ""}`} disabled={!available} aria-label="Type instead" aria-pressed={state.mode === "typing"} onClick={() => { void live.current?.typeInstead(); }}><Keyboard size={21} /></button>
-              <Switch label="Suggestions" checked={state.snapshot.preferences.suggestions} disabled={!available || preferencePending} onChange={value => { void setSuggestions(value); }} />
               {state.snapshot.learnerTurn?.canCommit && state.mode === "voice" && state.mic && state.snapshot.state === "listening" && <button className="button bg-teal-soft text-teal-ink" disabled={!available} onClick={() => {
                 const turn = state.snapshot.learnerTurn;
                 const controller = live.current;
@@ -227,9 +234,9 @@ export function Live({ profile }: { profile: Profile }) {
           </div>
           {ending && <Busy>Saving your feedback...</Busy>}
         </div>
-        <aside aria-label="Quiet coach" className="min-w-0 overflow-hidden rounded-[32px] bg-white shadow-card">
-          <header className="flex items-center gap-3 border-b-2 border-line px-5 py-4"><Pip size={60} mood={presentation.mood} /><div><h2 className="text-xl font-black">Coach</h2><p className="text-xs font-bold text-muted">Stays quiet while you talk</p></div></header>
-          <div className="flex flex-col gap-4 p-4 sm:p-5 xl:max-h-[72dvh] xl:overflow-y-auto">
+        <aside aria-label="Quiet coach" className="min-w-0 overflow-hidden rounded-[32px] bg-white shadow-card flex flex-col">
+          <header className="flex items-center gap-3 border-b-2 border-line px-5 py-4"><Pip size={60} mood={presentation.mood} /><div className="min-w-0"><h2 className="text-xl font-black">Coach</h2><Switch label="Suggestions" checked={state.snapshot.preferences.suggestions} disabled={!available || preferencePending} onChange={value => { void setSuggestions(value); }} /></div></header>
+          <div ref={coachPanel} className="flex flex-col gap-4 p-4 sm:p-5 xl:max-h-[72dvh] overflow-y-auto">
             {state.snapshot.cards.length === 0 && <p className="rounded-2xl bg-teal-soft/40 p-4 text-sm leading-relaxed text-body">Stay in the scene. Your coach will leave a little encouragement and a sharper way to say things here.</p>}
             {state.snapshot.cards.map(card => <article key={card.findingId} className={`rounded-[22px] border-l-[5px] p-4 shadow-sm ${card.kind === "nice" ? "border-teal bg-teal-soft/25" : "border-sun bg-sun-soft/30"}`}>
               <h3 className={`flex items-center gap-2 text-xs font-black uppercase tracking-wide ${card.kind === "nice" ? "text-teal-ink" : "text-sun-ink"}`}>{card.kind === "nice" ? <Heart size={16} /> : <Zap size={16} />}{card.kind === "nice" ? "Nice" : "Upgrade this"}</h3>

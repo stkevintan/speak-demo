@@ -11,14 +11,34 @@ import { synthesizeWithFallback } from "./tts.js";
 
 export const AUDIO_SAMPLE_RATE = 24000;
 
-export function createTextModel(modelName: string): TextModel {
+export function createTextModel(modelName: string, options: { apiKey?: string; baseUrl?: string } = {}): TextModel {
+  if (options.apiKey) {
+    return {
+      async complete(prompt, signal) {
+        const response = await fetch(`${options.baseUrl ?? "https://api.openai.com/v1"}/chat/completions`, {
+          method: "POST", signal,
+          headers: { authorization: `Bearer ${options.apiKey}`, "content-type": "application/json" },
+          body: JSON.stringify({ model: modelName, messages: [{ role: "user", content: prompt }], temperature: 0 }),
+        });
+        if (!response.ok) throw new Error(`Coach provider returned HTTP ${response.status}`);
+        const body = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+        const content = body.choices?.[0]?.message?.content;
+        if (!content) throw new Error("Coach provider returned no content");
+        return content;
+      },
+      close: async () => {},
+    };
+  }
   const model = inference.LLM.fromModelString(modelName);
   return {
     async complete(prompt, signal) {
       signal.throwIfAborted();
       const chatCtx = llm.ChatContext.empty();
       chatCtx.addMessage({ role: "system", content: prompt });
-      const stream = model.chat({ chatCtx });
+      const stream = model.chat({
+        chatCtx,
+        connOptions: { maxRetry: 0, retryIntervalMs: 0, timeoutMs: 10_000 },
+      });
       const abort = () => stream.close();
       signal.addEventListener("abort", abort, { once: true });
       try {
