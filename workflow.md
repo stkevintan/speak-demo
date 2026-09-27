@@ -8,7 +8,7 @@
 The work follows these principles:
 
 1. **Specification-driven development:** Write clear specifications before implementation.
-2. **Design first:** Define the product, user experience, functionality, modules, architecture, and implementation plan before writing code.
+2. **Design first:** Define (with AI) the product, user experience, functionality, modules, architecture, and implementation plan before writing code.
 3. **Contract first:** Establish strongly typed contracts, interfaces, and APIs using tools such as AJV, Zod, and TypeScript before implementing modules.
 4. **Human review gate:** Review all AI-generated documentation and code before committing.
 
@@ -50,6 +50,7 @@ Produce `packages/contracts` and the relevant `courses/*` materials.
 ### 6. Parallel Module Implementation
 Delegate the implementation to three sub-agents, each working in an isolated worktree. Implement the web, control-plane, and agent-worker modules in parallel while recursively following the **specification-driven, design-first, and human-gate** principles.
 
+![screenshot](./image.png)
 Produce [web.md](docs/modules/web.md), [agent-worker](docs/modules/agent-worker.md), [control-plane](docs/modules/control-plane.md) and the corresponding `apps/*` implementations.
 
 ### 7. Integration and Validation
