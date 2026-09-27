@@ -2,6 +2,8 @@ packages:
   - "apps/*"
   - "packages/*"
 allowBuilds:
+  '@livekit/local-inference': true
+  onnxruntime-node: true
   # tsx runs on esbuild; its postinstall fetches the platform binary.
   esbuild: true
   better-sqlite3: true
@@ -20,3 +22,5 @@ minimumReleaseAgeExclude:
   - '@orval/swr@8.38.0'
   - '@orval/zod@8.38.0'
   - orval@8.38.0
+  - '@livekit/agents-plugin-silero@1.9.1'
+  - '@livekit/agents@1.9.1'
