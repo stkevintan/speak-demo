@@ -2,6 +2,23 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
+    "v": {
+      "type": "number",
+      "const": 1
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
     "type": {
       "type": "string",
       "const": "coach.card"
@@ -35,6 +52,14 @@
         "zh": {
           "type": "string",
           "minLength": 1
+        },
+        "findingId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "turnId": {
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -42,12 +67,18 @@
         "category",
         "quote",
         "en",
-        "zh"
+        "zh",
+        "findingId",
+        "turnId"
       ],
       "additionalProperties": false
     }
   },
   "required": [
+    "v",
+    "sessionId",
+    "id",
+    "seq",
     "type",
     "payload"
   ],

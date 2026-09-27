@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Rehearsal control-plane
-  version: 0.1.0
+  version: 0.2.0
   description: |
     The seven endpoints the browser calls — `ARCHITECTURE.md` §6.2.
 
@@ -19,6 +19,9 @@ servers:
   - url: http://localhost:3000
     description: Local development.
 
+security:
+  - SessionCookie: []
+
 tags:
   - name: me
   - name: courses
@@ -29,20 +32,41 @@ paths:
     get:
       tags: [me]
       summary: The signed-in learner's profile
+      description: |
+        In development only, a request without a session cookie bootstraps the
+        fixed dev user and sets an HttpOnly, SameSite=Lax rehearsal_session JWT
+        cookie. Production requires a valid cookie; bootstrap is disabled.
+        Invalid presented credentials return 401. New profiles have onboarded=false.
+      security:
+        - SessionCookie: []
+        - {}
       operationId: getMe
       responses:
         "200":
           description: The profile, including recalled patterns from past sessions.
+          headers:
+            Set-Cookie:
+              description: Development bootstrap only; Secure outside local HTTP.
+              schema:
+                type: string
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Profile"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
     patch:
       tags: [me]
       summary: Update level and the two preferences
+      description: |
+        Saving level atomically sets onboarded=true, including Skip submitting a
+        level. Preference-only updates do not complete onboarding. onboarded is
+        server-controlled and cannot be patched. An empty patch is a no-op.
       operationId: patchMe
       requestBody:
         required: true
@@ -59,6 +83,12 @@ paths:
                 $ref: "#/components/schemas/Profile"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/courses:
     get:
@@ -79,6 +109,10 @@ paths:
                   $ref: "#/components/schemas/CourseCard"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/courses/{id}:
     get:
@@ -98,6 +132,12 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/sessions:
     post:
@@ -112,13 +152,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [courseId]
-              additionalProperties: false
-              properties:
-                courseId:
-                  type: string
-                  pattern: "^[a-z][a-z0-9-]*$"
+              $ref: "#/components/schemas/StartSessionRequest"
       responses:
         "201":
           description: |
@@ -132,6 +166,12 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/sessions/{id}/end:
     post:
@@ -155,6 +195,12 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/sessions/{id}/debrief:
     get:
@@ -177,6 +223,12 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
         "409":
           description: The session has not ended yet, so there is no debrief to read.
           content:
@@ -185,6 +237,15 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: rehearsal_session
+      description: |
+        Signed JWT resolved to the caller's userId. Cookie is HttpOnly and
+        SameSite=Lax, Secure outside local HTTP. Browser mutations must pass
+        the server's configured Origin policy. No provider keys reach the web.
   parameters:
     CourseId:
       name: id
@@ -217,17 +278,10 @@ components:
       $ref: "./schema/http/SessionStart.schema.json"
     Debrief:
       $ref: "./schema/http/Debrief.schema.json"
+    StartSessionRequest:
+      $ref: "./schema/http/StartSessionRequest.schema.json"
     Error:
-      type: object
-      required: [code, message]
-      additionalProperties: false
-      properties:
-        code:
-          type: string
-          description: Stable and machine-readable.
-        message:
-          type: string
-          description: Plain language, shown to the learner as-is.
+      $ref: "./schema/http/ApiErrorBody.schema.json"
 
   responses:
     Unauthorized:
@@ -237,7 +291,25 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     NotFound:
-      description: No such course or session.
+      description: No such course or session owned by the caller.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    BadRequest:
+      description: Invalid parameters or JSON body.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unavailable:
+      description: A required dependency is unavailable; retry rather than inventing session data.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InternalError:
+      description: Unexpected server error with a sanitized learner-readable message.
       content:
         application/json:
           schema:

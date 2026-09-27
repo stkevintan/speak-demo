@@ -21,27 +21,24 @@
     },
     "type": {
       "type": "string",
-      "const": "suggestions"
+      "const": "session.ended"
     },
     "payload": {
       "type": "object",
       "properties": {
-        "prompt": {
+        "reason": {
           "type": "string",
-          "minLength": 1
-        },
-        "options": {
-          "minItems": 1,
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
+          "enum": [
+            "user",
+            "quit",
+            "network",
+            "goal",
+            "budget"
+          ]
         }
       },
       "required": [
-        "prompt",
-        "options"
+        "reason"
       ],
       "additionalProperties": false
     }

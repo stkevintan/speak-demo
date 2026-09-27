@@ -2,6 +2,23 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
+    "v": {
+      "type": "number",
+      "const": 1
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
     "type": {
       "type": "string",
       "const": "transcript.final"
@@ -29,18 +46,36 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "turnId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "asr",
+            "typed",
+            "character"
+          ]
         }
       },
       "required": [
         "role",
         "text",
         "tStart",
-        "tEnd"
+        "tEnd",
+        "turnId",
+        "source"
       ],
       "additionalProperties": false
     }
   },
   "required": [
+    "v",
+    "sessionId",
+    "id",
+    "seq",
     "type",
     "payload"
   ],

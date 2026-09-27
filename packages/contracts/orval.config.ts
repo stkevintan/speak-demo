@@ -29,6 +29,8 @@ export default defineConfig({
             "./schema/http/CourseCard.schema.json",
             "./schema/http/SessionStart.schema.json",
             "./schema/http/Debrief.schema.json",
+            "./schema/http/StartSessionRequest.schema.json",
+            "./schema/http/ApiErrorBody.schema.json",
           ],
         },
       },
@@ -46,11 +48,12 @@ export default defineConfig({
           name: "fetcher",
         },
         query: {
-          useQuery: true,
-          useMutation: true,
           // Pinned: `web` installs React Query v5, and orval cannot detect it
           // from this package. Without this the hooks get v4 option types.
           version: 5,
+        },
+        fetch: {
+          includeHttpResponseReturnType: false,
         },
       },
     },

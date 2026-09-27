@@ -15,7 +15,12 @@ import {
   ProfilePatch,
   SessionStart,
   Turn,
+  EndReason,
+  SessionRecord,
 } from "../zod/session.js";
+import { ApiErrorBody, StartSessionRequest } from "../zod/http.js";
+import { SessionSnapshot } from "../zod/events.js";
+import { CloseAck, CloseRequest, WorkerBootstrap, WorkerCheckpoint, WorkerLease } from "../zod/worker.js";
 
 /**
  * JSON Schema for everything that crosses a process boundary — the course
@@ -43,6 +48,8 @@ const http: Array<[string, z.ZodType]> = [
   ["Pattern", Pattern],
   ["CoachSignal", CoachSignal],
   ["Turn", Turn],
+  ["StartSessionRequest", StartSessionRequest],
+  ["ApiErrorBody", ApiErrorBody],
 ];
 
 const targets: Array<[string, z.ZodType]> = [
@@ -51,6 +58,10 @@ const targets: Array<[string, z.ZodType]> = [
   ...Object.entries(REALTIME_EVENTS).map(
     ([name, schema]) => [`schema/events/${name}.schema.json`, schema as z.ZodType] as [string, z.ZodType],
   ),
+  ...Object.entries({
+    EndReason, SessionRecord, SessionSnapshot, WorkerBootstrap,
+    WorkerLease, WorkerCheckpoint, CloseRequest, CloseAck,
+  }).map(([name, schema]) => [`schema/worker/${name}.schema.json`, schema] as [string, z.ZodType]),
 ];
 
 let drifted = 0;

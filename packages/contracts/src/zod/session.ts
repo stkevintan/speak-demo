@@ -13,7 +13,7 @@ import { Accent, Avatar, Level } from "./course.js";
 export const State = z.enum(["idle", "listening", "thinking", "speaking", "ended"]);
 export type State = z.infer<typeof State>;
 
-export const EndReason = z.enum(["user", "quit", "network"]);
+export const EndReason = z.enum(["user", "quit", "network", "goal", "budget"]);
 export type EndReason = z.infer<typeof EndReason>;
 
 /**
@@ -41,7 +41,7 @@ export type TurnEvent = z.infer<typeof TurnEvent>;
  * ------------------------------------------------------------------ */
 
 /** Milliseconds from session start. */
-export const Timing = z.object({
+export const Timing = z.strictObject({
   tStart: z.number().int().nonnegative(),
   tEnd: z.number().int().nonnegative(),
 });
@@ -51,7 +51,7 @@ export const Role = z.enum(["learner", "character"]);
 export type Role = z.infer<typeof Role>;
 
 /** One transcript line. Also the payload of the `transcript.final` event (§6.3). */
-export const Turn = z.object({
+export const Turn = z.strictObject({
   role: Role,
   text: z.string().min(1),
   tStart: z.number().int().nonnegative(),
@@ -68,7 +68,7 @@ export type Turn = z.infer<typeof Turn>;
  * same machinery as `nit`s because "positive cards always show" cannot depend on
  * happening to find nothing wrong.
  */
-export const Finding = z.object({
+export const Finding = z.strictObject({
   kind: z.enum(["nice", "nit"]),
   category: z.string().min(1),
   quote: z.string().min(1),
@@ -93,9 +93,12 @@ export type CoachCard = z.infer<typeof CoachCard>;
  * from "nothing went well" (`0 / 12`) — a real difference in the debrief, and one
  * a stored `0` would erase.
  */
-export const CoachSignal = z.object({
+export const CoachSignal = z.strictObject({
   nice: z.number().int().nonnegative(),
   total: z.number().int().nonnegative(),
+}).refine((signal) => signal.nice <= signal.total, {
+  message: "nice cannot exceed total",
+  path: ["nice"],
 });
 export type CoachSignal = z.infer<typeof CoachSignal>;
 
@@ -105,7 +108,7 @@ export function coachRate(signal: CoachSignal): number | null {
 }
 
 /** A nit, kept with its fix. A correction with no `better` is not a correction. */
-export const Correction = z.object({
+export const Correction = z.strictObject({
   category: z.string().min(1),
   quote: z.string().min(1),
   better: z.string().min(1),
@@ -119,7 +122,7 @@ export type Correction = z.infer<typeof Correction>;
  * ------------------------------------------------------------------ */
 
 /** Slips counted by category across sessions — never a stored transcript (§11). */
-export const Pattern = z.object({
+export const Pattern = z.strictObject({
   category: z.string().min(1),
   count: z.number().int().positive(),
   lastSeen: z.string().min(1),
@@ -131,13 +134,13 @@ export type Pattern = z.infer<typeof Pattern>;
  * ------------------------------------------------------------------ */
 
 /** Handed to the character so it closes in character instead of opening a thread. */
-export const Directive = z.object({
+export const Directive = z.strictObject({
   converge: z.literal(true),
   withinTurns: z.number().int().positive(),
 });
 export type Directive = z.infer<typeof Directive>;
 
-export const CourseRef = z.object({
+export const CourseRef = z.strictObject({
   id: z.string().min(1),
   title: z.string().min(1),
 });
@@ -148,7 +151,7 @@ export type CourseRef = z.infer<typeof CourseRef>;
  * scene asks "did you get the refund", not "was your English clean". Binary,
  * because "did you win?" is a game question.
  */
-export const Debrief = z.object({
+export const Debrief = z.strictObject({
   won: z.boolean(),
   headline: z.string().min(1),
   /**
@@ -166,7 +169,7 @@ export const Debrief = z.object({
 export type Debrief = z.infer<typeof Debrief>;
 
 /** What the worker leaves in Redis for `buildDebrief` to read (§7). */
-export const SessionRecord = z.object({
+export const SessionRecord = z.strictObject({
   sessionId: z.string().min(1),
   courseId: z.string().min(1),
   transcript: z.array(Turn),
@@ -182,9 +185,11 @@ export type SessionRecord = z.infer<typeof SessionRecord>;
  * Profile — ARCHITECTURE.md §4.2
  * ------------------------------------------------------------------ */
 
-export const Profile = z.object({
+export const Profile = z.strictObject({
   userId: z.string().min(1),
   level: Level,
+  /** Set by the server when a level is explicitly saved, including Skip. */
+  onboarded: z.boolean(),
   /** Show the Chinese line under every correction (`PRODUCT.md` "never left to decode"). */
   chinese: z.boolean(),
   /** Offer prompts after a long silence. */
@@ -207,13 +212,13 @@ export type ProfilePatch = z.infer<typeof ProfilePatch>;
 export const CourseFit = z.enum(["easy", "on_level", "stretch"]);
 export type CourseFit = z.infer<typeof CourseFit>;
 
-export const CourseCard = z.object({
+export const CourseCard = z.strictObject({
   id: z.string().min(1),
   title: z.string().min(1),
   levels: z.array(Level).min(1),
   accent: Accent,
   avatar: Avatar,
-  counterpart: z.object({ name: z.string().min(1), role: z.string().min(1) }),
+  counterpart: z.strictObject({ name: z.string().min(1), role: z.string().min(1) }),
   goal: z.string().min(1),
   you: z.string().min(1),
   setting: z.string().min(1),
@@ -226,9 +231,9 @@ export type CourseCard = z.infer<typeof CourseCard>;
  * Realtime surface — ARCHITECTURE.md §6.3
  * ------------------------------------------------------------------ */
 
-export const SessionStart = z.object({
+export const SessionStart = z.strictObject({
   sessionId: z.string().min(1),
-  livekit: z.object({
+  livekit: z.strictObject({
     url: z.string().min(1),
     /** Scoped to one room. The only credential the browser ever holds (§6.2). */
     token: z.string().min(1),

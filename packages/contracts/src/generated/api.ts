@@ -13,7 +13,7 @@
  * validators the server and the worker actually run. The spec cannot drift from
  * the code because it does not restate it — `pnpm check:schema` fails on drift.
  *
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 import {
   useMutation,
@@ -35,6 +35,7 @@ import type {
 } from '@tanstack/react-query';
 
 import { fetcher } from '../fetcher';
+import type { ErrorType } from '../fetcher';
 export type ProfileLevel = typeof ProfileLevel[keyof typeof ProfileLevel];
 
 
@@ -60,6 +61,7 @@ export interface Profile {
   /** @minLength 1 */
   userId: string;
   level: ProfileLevel;
+  onboarded: boolean;
   chinese: boolean;
   suggestions: boolean;
   patterns: ProfilePatternsItem[];
@@ -339,10 +341,15 @@ export interface Debrief {
   next: DebriefNext;
 }
 
+export interface StartSessionRequest {
+  /** @pattern ^[a-z][a-z0-9-]*$ */
+  courseId: string;
+}
+
 export interface Error {
-  /** Stable and machine-readable. */
+  /** @minLength 1 */
   code: string;
-  /** Plain language, shown to the learner as-is. */
+  /** @minLength 1 */
   message: string;
 }
 
@@ -352,14 +359,24 @@ export interface Error {
 export type UnauthorizedResponse = Error;
 
 /**
- * No such course or session.
+ * No such course or session owned by the caller.
  */
 export type NotFoundResponse = Error;
 
-export type StartSessionBody = {
-  /** @pattern ^[a-z][a-z0-9-]*$ */
-  courseId: string;
-};
+/**
+ * Invalid parameters or JSON body.
+ */
+export type BadRequestResponse = Error;
+
+/**
+ * A required dependency is unavailable; retry rather than inventing session data.
+ */
+export type UnavailableResponse = Error;
+
+/**
+ * Unexpected server error with a sanitized learner-readable message.
+ */
+export type InternalErrorResponse = Error;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -380,25 +397,6 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-export type getMeResponse200 = {
-  data: Profile
-  status: 200
-}
-
-export type getMeResponse401 = {
-  data: UnauthorizedResponse
-  status: 401
-}
-
-export type getMeResponseSuccess = (getMeResponse200) & {
-  headers: Headers;
-};
-export type getMeResponseError = (getMeResponse401) & {
-  headers: Headers;
-};
-
-export type getMeResponse = (getMeResponseSuccess | getMeResponseError)
-
 export const getGetMeUrl = () => {
 
 
@@ -408,11 +406,15 @@ export const getGetMeUrl = () => {
 }
 
 /**
+ * In development only, a request without a session cookie bootstraps the
+ * fixed dev user and sets an HttpOnly, SameSite=Lax rehearsal_session JWT
+ * cookie. Production requires a valid cookie; bootstrap is disabled.
+ * Invalid presented credentials return 401. New profiles have onboarded=false.
  * @summary The signed-in learner's profile
  */
-export const getMe = async ( options?: Parameters<typeof fetcher>[1]): Promise<getMeResponse> => {
+export const getMe = async ( options?: Parameters<typeof fetcher>[1]): Promise<Profile> => {
 
-  return fetcher<getMeResponse>(getGetMeUrl(),
+  return fetcher<Profile>(getGetMeUrl(),
   {
     ...options,
     method: 'GET'
@@ -425,72 +427,80 @@ export const getMe = async ( options?: Parameters<typeof fetcher>[1]): Promise<g
 
 
 
-export const getGetMeMutationKey = () => ['getMe'] as const;
-
-export const getGetMeMutationOptions = <TError = UnauthorizedResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getMe>>, TError,void, TContext>, request?: SecondParameter<typeof fetcher>}
-): UseMutationOptions<Awaited<ReturnType<typeof getMe>>, TError,void, TContext> => {
-
-const mutationKey = getGetMeMutationKey();
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getMe>>, void> = () => {
-
-
-          return  getMe(requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type GetMeMutationResult = NonNullable<Awaited<ReturnType<typeof getMe>>>
-
-    export type GetMeMutationError = UnauthorizedResponse
-
-
-    /**
- * @summary The signed-in learner's profile
- */
-export const useGetMe = <TError = UnauthorizedResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getMe>>, TError,void, TContext>, request?: SecondParameter<typeof fetcher>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof getMe>>,
-        TError,
-        void,
-        TContext
-      > => {
-      return useMutation(getGetMeMutationOptions(options), queryClient);
+export const getGetMeQueryKey = () => {
+    return [
+    `/api/me`
+    ] as const;
     }
 
-export type patchMeResponse200 = {
-  data: Profile
-  status: 200
+
+export const getGetMeQueryOptions = <TData = Awaited<ReturnType<typeof getMe>>, TError = ErrorType<UnauthorizedResponse | InternalErrorResponse | UnavailableResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMe>>> = ({ signal }) => getMe({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type patchMeResponse401 = {
-  data: UnauthorizedResponse
-  status: 401
+export type GetMeQueryResult = NonNullable<Awaited<ReturnType<typeof getMe>>>
+export type GetMeQueryError = ErrorType<UnauthorizedResponse | InternalErrorResponse | UnavailableResponse>
+
+
+export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = ErrorType<UnauthorizedResponse | InternalErrorResponse | UnavailableResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMe>>,
+          TError,
+          Awaited<ReturnType<typeof getMe>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = ErrorType<UnauthorizedResponse | InternalErrorResponse | UnavailableResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMe>>,
+          TError,
+          Awaited<ReturnType<typeof getMe>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = ErrorType<UnauthorizedResponse | InternalErrorResponse | UnavailableResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The signed-in learner's profile
+ */
+
+export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = ErrorType<UnauthorizedResponse | InternalErrorResponse | UnavailableResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMeQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
 }
 
-export type patchMeResponseSuccess = (patchMeResponse200) & {
-  headers: Headers;
-};
-export type patchMeResponseError = (patchMeResponse401) & {
-  headers: Headers;
-};
 
-export type patchMeResponse = (patchMeResponseSuccess | patchMeResponseError)
+
+
+
+
 
 export const getPatchMeUrl = () => {
 
@@ -501,9 +511,12 @@ export const getPatchMeUrl = () => {
 }
 
 /**
+ * Saving level atomically sets onboarded=true, including Skip submitting a
+ * level. Preference-only updates do not complete onboarding. onboarded is
+ * server-controlled and cannot be patched. An empty patch is a no-op.
  * @summary Update level and the two preferences
  */
-export const patchMe = async (profilePatch: ProfilePatch, options?: Parameters<typeof fetcher>[1]): Promise<patchMeResponse> => {
+export const patchMe = async (profilePatch: ProfilePatch, options?: Parameters<typeof fetcher>[1]): Promise<Profile> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -519,7 +532,7 @@ export const patchMe = async (profilePatch: ProfilePatch, options?: Parameters<t
     }
     return headers;
   };
-return fetcher<patchMeResponse>(getPatchMeUrl(),
+return fetcher<Profile>(getPatchMeUrl(),
   {
     ...options,
     method: 'PATCH',
@@ -532,99 +545,53 @@ return fetcher<patchMeResponse>(getPatchMeUrl(),
 
 
 
-export const getPatchMeQueryKey = (profilePatch?: ProfilePatch,) => {
-    return [
-    'PATCH', `/api/me`, profilePatch
-    ] as const;
-    }
+export const getPatchMeMutationKey = () => ['patchMe'] as const;
 
+export const getPatchMeMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | InternalErrorResponse | UnavailableResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchMe>>, TError,PatchMeMutationVariables, TContext>, request?: SecondParameter<typeof fetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof patchMe>>, TError,PatchMeMutationVariables, TContext> => {
 
-export const getPatchMeQueryOptions = <TData = Awaited<ReturnType<typeof patchMe>>, TError = UnauthorizedResponse>(profilePatch: ProfilePatch, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof patchMe>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getPatchMeQueryKey(profilePatch);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof patchMe>>> = ({ signal }) => patchMe(profilePatch, { signal, ...requestOptions });
+const mutationKey = getPatchMeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
 
 
 
 
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchMe>>, PatchMeMutationVariables> = (props) => {
+          const {data} = props ?? {};
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof patchMe>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type PatchMeQueryResult = NonNullable<Awaited<ReturnType<typeof patchMe>>>
-export type PatchMeQueryError = UnauthorizedResponse
+          return  patchMe(data,requestOptions)
+        }
 
 
-export function usePatchMe<TData = Awaited<ReturnType<typeof patchMe>>, TError = UnauthorizedResponse>(
- profilePatch: ProfilePatch, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof patchMe>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof patchMe>>,
-          TError,
-          Awaited<ReturnType<typeof patchMe>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof fetcher>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePatchMe<TData = Awaited<ReturnType<typeof patchMe>>, TError = UnauthorizedResponse>(
- profilePatch: ProfilePatch, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof patchMe>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof patchMe>>,
-          TError,
-          Awaited<ReturnType<typeof patchMe>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof fetcher>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePatchMe<TData = Awaited<ReturnType<typeof patchMe>>, TError = UnauthorizedResponse>(
- profilePatch: ProfilePatch, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof patchMe>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchMeMutationResult = NonNullable<Awaited<ReturnType<typeof patchMe>>>
+    export type PatchMeMutationBody = ProfilePatch
+    export type PatchMeMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | InternalErrorResponse | UnavailableResponse>
+    export type PatchMeMutationVariables = {data: ProfilePatch}
+
+    /**
  * @summary Update level and the two preferences
  */
-
-export function usePatchMe<TData = Awaited<ReturnType<typeof patchMe>>, TError = UnauthorizedResponse>(
- profilePatch: ProfilePatch, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof patchMe>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getPatchMeQueryOptions(profilePatch,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-
-export type listCoursesResponse200 = {
-  data: CourseCard[]
-  status: 200
-}
-
-export type listCoursesResponse401 = {
-  data: UnauthorizedResponse
-  status: 401
-}
-
-export type listCoursesResponseSuccess = (listCoursesResponse200) & {
-  headers: Headers;
-};
-export type listCoursesResponseError = (listCoursesResponse401) & {
-  headers: Headers;
-};
-
-export type listCoursesResponse = (listCoursesResponseSuccess | listCoursesResponseError)
+export const usePatchMe = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | InternalErrorResponse | UnavailableResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchMe>>, TError,PatchMeMutationVariables, TContext>, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof patchMe>>,
+        TError,
+        PatchMeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPatchMeMutationOptions(options), queryClient);
+    }
 
 export const getListCoursesUrl = () => {
 
@@ -639,9 +606,9 @@ export const getListCoursesUrl = () => {
  * returns the full set and `fit` says which one is on level.
  * @summary Every course, badged for this learner
  */
-export const listCourses = async ( options?: Parameters<typeof fetcher>[1]): Promise<listCoursesResponse> => {
+export const listCourses = async ( options?: Parameters<typeof fetcher>[1]): Promise<CourseCard[]> => {
 
-  return fetcher<listCoursesResponse>(getListCoursesUrl(),
+  return fetcher<CourseCard[]>(getListCoursesUrl(),
   {
     ...options,
     method: 'GET'
@@ -654,77 +621,80 @@ export const listCourses = async ( options?: Parameters<typeof fetcher>[1]): Pro
 
 
 
-export const getListCoursesMutationKey = () => ['listCourses'] as const;
-
-export const getListCoursesMutationOptions = <TError = UnauthorizedResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof listCourses>>, TError,void, TContext>, request?: SecondParameter<typeof fetcher>}
-): UseMutationOptions<Awaited<ReturnType<typeof listCourses>>, TError,void, TContext> => {
-
-const mutationKey = getListCoursesMutationKey();
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof listCourses>>, void> = () => {
-
-
-          return  listCourses(requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ListCoursesMutationResult = NonNullable<Awaited<ReturnType<typeof listCourses>>>
-
-    export type ListCoursesMutationError = UnauthorizedResponse
-
-
-    /**
- * @summary Every course, badged for this learner
- */
-export const useListCourses = <TError = UnauthorizedResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof listCourses>>, TError,void, TContext>, request?: SecondParameter<typeof fetcher>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof listCourses>>,
-        TError,
-        void,
-        TContext
-      > => {
-      return useMutation(getListCoursesMutationOptions(options), queryClient);
+export const getListCoursesQueryKey = () => {
+    return [
+    `/api/courses`
+    ] as const;
     }
 
-export type getCourseResponse200 = {
-  data: Course
-  status: 200
+
+export const getListCoursesQueryOptions = <TData = Awaited<ReturnType<typeof listCourses>>, TError = ErrorType<UnauthorizedResponse | InternalErrorResponse | UnavailableResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCourses>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCoursesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCourses>>> = ({ signal }) => listCourses({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCourses>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type getCourseResponse401 = {
-  data: UnauthorizedResponse
-  status: 401
+export type ListCoursesQueryResult = NonNullable<Awaited<ReturnType<typeof listCourses>>>
+export type ListCoursesQueryError = ErrorType<UnauthorizedResponse | InternalErrorResponse | UnavailableResponse>
+
+
+export function useListCourses<TData = Awaited<ReturnType<typeof listCourses>>, TError = ErrorType<UnauthorizedResponse | InternalErrorResponse | UnavailableResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCourses>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listCourses>>,
+          TError,
+          Awaited<ReturnType<typeof listCourses>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListCourses<TData = Awaited<ReturnType<typeof listCourses>>, TError = ErrorType<UnauthorizedResponse | InternalErrorResponse | UnavailableResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCourses>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listCourses>>,
+          TError,
+          Awaited<ReturnType<typeof listCourses>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListCourses<TData = Awaited<ReturnType<typeof listCourses>>, TError = ErrorType<UnauthorizedResponse | InternalErrorResponse | UnavailableResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCourses>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Every course, badged for this learner
+ */
+
+export function useListCourses<TData = Awaited<ReturnType<typeof listCourses>>, TError = ErrorType<UnauthorizedResponse | InternalErrorResponse | UnavailableResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCourses>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListCoursesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
 }
 
-export type getCourseResponse404 = {
-  data: NotFoundResponse
-  status: 404
-}
 
-export type getCourseResponseSuccess = (getCourseResponse200) & {
-  headers: Headers;
-};
-export type getCourseResponseError = (getCourseResponse401 | getCourseResponse404) & {
-  headers: Headers;
-};
 
-export type getCourseResponse = (getCourseResponseSuccess | getCourseResponseError)
+
+
+
 
 export const getGetCourseUrl = (id: string,) => {
 
@@ -737,9 +707,9 @@ export const getGetCourseUrl = (id: string,) => {
 /**
  * @summary One course, fully parsed
  */
-export const getCourse = async (id: string, options?: Parameters<typeof fetcher>[1]): Promise<getCourseResponse> => {
+export const getCourse = async (id: string, options?: Parameters<typeof fetcher>[1]): Promise<Course> => {
 
-  return fetcher<getCourseResponse>(getGetCourseUrl(id),
+  return fetcher<Course>(getGetCourseUrl(id),
   {
     ...options,
     method: 'GET'
@@ -752,77 +722,80 @@ export const getCourse = async (id: string, options?: Parameters<typeof fetcher>
 
 
 
-export const getGetCourseMutationKey = () => ['getCourse'] as const;
-
-export const getGetCourseMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getCourse>>, TError,GetCourseMutationVariables, TContext>, request?: SecondParameter<typeof fetcher>}
-): UseMutationOptions<Awaited<ReturnType<typeof getCourse>>, TError,GetCourseMutationVariables, TContext> => {
-
-const mutationKey = getGetCourseMutationKey();
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getCourse>>, GetCourseMutationVariables> = (props) => {
-          const {id} = props ?? {};
-
-          return  getCourse(id,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type GetCourseMutationResult = NonNullable<Awaited<ReturnType<typeof getCourse>>>
-
-    export type GetCourseMutationError = UnauthorizedResponse | NotFoundResponse
-    export type GetCourseMutationVariables = {id: string}
-
-    /**
- * @summary One course, fully parsed
- */
-export const useGetCourse = <TError = UnauthorizedResponse | NotFoundResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getCourse>>, TError,GetCourseMutationVariables, TContext>, request?: SecondParameter<typeof fetcher>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof getCourse>>,
-        TError,
-        GetCourseMutationVariables,
-        TContext
-      > => {
-      return useMutation(getGetCourseMutationOptions(options), queryClient);
+export const getGetCourseQueryKey = (id: string,) => {
+    return [
+    `/api/courses/${id}`
+    ] as const;
     }
 
-export type startSessionResponse201 = {
-  data: SessionStart
-  status: 201
+
+export const getGetCourseQueryOptions = <TData = Awaited<ReturnType<typeof getCourse>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | InternalErrorResponse | UnavailableResponse>>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCourse>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCourseQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCourse>>> = ({ signal }) => getCourse(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCourse>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type startSessionResponse401 = {
-  data: UnauthorizedResponse
-  status: 401
+export type GetCourseQueryResult = NonNullable<Awaited<ReturnType<typeof getCourse>>>
+export type GetCourseQueryError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | InternalErrorResponse | UnavailableResponse>
+
+
+export function useGetCourse<TData = Awaited<ReturnType<typeof getCourse>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | InternalErrorResponse | UnavailableResponse>>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCourse>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCourse>>,
+          TError,
+          Awaited<ReturnType<typeof getCourse>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCourse<TData = Awaited<ReturnType<typeof getCourse>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | InternalErrorResponse | UnavailableResponse>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCourse>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCourse>>,
+          TError,
+          Awaited<ReturnType<typeof getCourse>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCourse<TData = Awaited<ReturnType<typeof getCourse>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | InternalErrorResponse | UnavailableResponse>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCourse>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary One course, fully parsed
+ */
+
+export function useGetCourse<TData = Awaited<ReturnType<typeof getCourse>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | InternalErrorResponse | UnavailableResponse>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCourse>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCourseQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
 }
 
-export type startSessionResponse404 = {
-  data: NotFoundResponse
-  status: 404
-}
 
-export type startSessionResponseSuccess = (startSessionResponse201) & {
-  headers: Headers;
-};
-export type startSessionResponseError = (startSessionResponse401 | startSessionResponse404) & {
-  headers: Headers;
-};
 
-export type startSessionResponse = (startSessionResponseSuccess | startSessionResponseError)
+
+
+
 
 export const getStartSessionUrl = () => {
 
@@ -837,7 +810,7 @@ export const getStartSessionUrl = () => {
  * worth recalling. The browser never holds a LiveKit key, only this token.
  * @summary Start a session
  */
-export const startSession = async (startSessionBody: StartSessionBody, options?: Parameters<typeof fetcher>[1]): Promise<startSessionResponse> => {
+export const startSession = async (startSessionRequest: StartSessionRequest, options?: Parameters<typeof fetcher>[1]): Promise<SessionStart> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -853,12 +826,12 @@ export const startSession = async (startSessionBody: StartSessionBody, options?:
     }
     return headers;
   };
-return fetcher<startSessionResponse>(getStartSessionUrl(),
+return fetcher<SessionStart>(getStartSessionUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(startSessionBody)
+    body: JSON.stringify(startSessionRequest)
   }
 );}
 
@@ -866,104 +839,53 @@ return fetcher<startSessionResponse>(getStartSessionUrl(),
 
 
 
-export const getStartSessionQueryKey = (startSessionBody?: StartSessionBody,) => {
-    return [
-    'POST', `/api/sessions`, startSessionBody
-    ] as const;
-    }
+export const getStartSessionMutationKey = () => ['startSession'] as const;
 
+export const getStartSessionMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | InternalErrorResponse | UnavailableResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startSession>>, TError,StartSessionMutationVariables, TContext>, request?: SecondParameter<typeof fetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof startSession>>, TError,StartSessionMutationVariables, TContext> => {
 
-export const getStartSessionQueryOptions = <TData = Awaited<ReturnType<typeof startSession>>, TError = UnauthorizedResponse | NotFoundResponse>(startSessionBody: StartSessionBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof startSession>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getStartSessionQueryKey(startSessionBody);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof startSession>>> = ({ signal }) => startSession(startSessionBody, { signal, ...requestOptions });
+const mutationKey = getStartSessionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
 
 
 
 
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startSession>>, StartSessionMutationVariables> = (props) => {
+          const {data} = props ?? {};
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof startSession>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type StartSessionQueryResult = NonNullable<Awaited<ReturnType<typeof startSession>>>
-export type StartSessionQueryError = UnauthorizedResponse | NotFoundResponse
+          return  startSession(data,requestOptions)
+        }
 
 
-export function useStartSession<TData = Awaited<ReturnType<typeof startSession>>, TError = UnauthorizedResponse | NotFoundResponse>(
- startSessionBody: StartSessionBody, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof startSession>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof startSession>>,
-          TError,
-          Awaited<ReturnType<typeof startSession>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof fetcher>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useStartSession<TData = Awaited<ReturnType<typeof startSession>>, TError = UnauthorizedResponse | NotFoundResponse>(
- startSessionBody: StartSessionBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof startSession>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof startSession>>,
-          TError,
-          Awaited<ReturnType<typeof startSession>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof fetcher>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useStartSession<TData = Awaited<ReturnType<typeof startSession>>, TError = UnauthorizedResponse | NotFoundResponse>(
- startSessionBody: StartSessionBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof startSession>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartSessionMutationResult = NonNullable<Awaited<ReturnType<typeof startSession>>>
+    export type StartSessionMutationBody = StartSessionRequest
+    export type StartSessionMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | InternalErrorResponse | UnavailableResponse>
+    export type StartSessionMutationVariables = {data: StartSessionRequest}
+
+    /**
  * @summary Start a session
  */
-
-export function useStartSession<TData = Awaited<ReturnType<typeof startSession>>, TError = UnauthorizedResponse | NotFoundResponse>(
- startSessionBody: StartSessionBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof startSession>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getStartSessionQueryOptions(startSessionBody,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-
-export type endSessionResponse200 = {
-  data: Debrief
-  status: 200
-}
-
-export type endSessionResponse401 = {
-  data: UnauthorizedResponse
-  status: 401
-}
-
-export type endSessionResponse404 = {
-  data: NotFoundResponse
-  status: 404
-}
-
-export type endSessionResponseSuccess = (endSessionResponse200) & {
-  headers: Headers;
-};
-export type endSessionResponseError = (endSessionResponse401 | endSessionResponse404) & {
-  headers: Headers;
-};
-
-export type endSessionResponse = (endSessionResponseSuccess | endSessionResponseError)
+export const useStartSession = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | InternalErrorResponse | UnavailableResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startSession>>, TError,StartSessionMutationVariables, TContext>, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof startSession>>,
+        TError,
+        StartSessionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getStartSessionMutationOptions(options), queryClient);
+    }
 
 export const getEndSessionUrl = (id: string,) => {
 
@@ -979,9 +901,9 @@ export const getEndSessionUrl = (id: string,) => {
  * rather than a second one.
  * @summary End the session and get the debrief
  */
-export const endSession = async (id: string, options?: Parameters<typeof fetcher>[1]): Promise<endSessionResponse> => {
+export const endSession = async (id: string, options?: Parameters<typeof fetcher>[1]): Promise<Debrief> => {
 
-  return fetcher<endSessionResponse>(getEndSessionUrl(id),
+  return fetcher<Debrief>(getEndSessionUrl(id),
   {
     ...options,
     method: 'POST'
@@ -994,109 +916,53 @@ export const endSession = async (id: string, options?: Parameters<typeof fetcher
 
 
 
-export const getEndSessionQueryKey = (id: string,) => {
-    return [
-    'POST', `/api/sessions/${id}/end`
-    ] as const;
-    }
+export const getEndSessionMutationKey = () => ['endSession'] as const;
 
+export const getEndSessionMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | InternalErrorResponse | UnavailableResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endSession>>, TError,EndSessionMutationVariables, TContext>, request?: SecondParameter<typeof fetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof endSession>>, TError,EndSessionMutationVariables, TContext> => {
 
-export const getEndSessionQueryOptions = <TData = Awaited<ReturnType<typeof endSession>>, TError = UnauthorizedResponse | NotFoundResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof endSession>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getEndSessionQueryKey(id);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof endSession>>> = ({ signal }) => endSession(id, { signal, ...requestOptions });
+const mutationKey = getEndSessionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
 
 
 
 
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endSession>>, EndSessionMutationVariables> = (props) => {
+          const {id} = props ?? {};
 
-   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof endSession>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type EndSessionQueryResult = NonNullable<Awaited<ReturnType<typeof endSession>>>
-export type EndSessionQueryError = UnauthorizedResponse | NotFoundResponse
+          return  endSession(id,requestOptions)
+        }
 
 
-export function useEndSession<TData = Awaited<ReturnType<typeof endSession>>, TError = UnauthorizedResponse | NotFoundResponse>(
- id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof endSession>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof endSession>>,
-          TError,
-          Awaited<ReturnType<typeof endSession>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof fetcher>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useEndSession<TData = Awaited<ReturnType<typeof endSession>>, TError = UnauthorizedResponse | NotFoundResponse>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof endSession>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof endSession>>,
-          TError,
-          Awaited<ReturnType<typeof endSession>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof fetcher>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useEndSession<TData = Awaited<ReturnType<typeof endSession>>, TError = UnauthorizedResponse | NotFoundResponse>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof endSession>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndSessionMutationResult = NonNullable<Awaited<ReturnType<typeof endSession>>>
+
+    export type EndSessionMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | InternalErrorResponse | UnavailableResponse>
+    export type EndSessionMutationVariables = {id: string}
+
+    /**
  * @summary End the session and get the debrief
  */
-
-export function useEndSession<TData = Awaited<ReturnType<typeof endSession>>, TError = UnauthorizedResponse | NotFoundResponse>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof endSession>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getEndSessionQueryOptions(id,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-
-export type getDebriefResponse200 = {
-  data: Debrief
-  status: 200
-}
-
-export type getDebriefResponse401 = {
-  data: UnauthorizedResponse
-  status: 401
-}
-
-export type getDebriefResponse404 = {
-  data: NotFoundResponse
-  status: 404
-}
-
-export type getDebriefResponse409 = {
-  data: Error
-  status: 409
-}
-
-export type getDebriefResponseSuccess = (getDebriefResponse200) & {
-  headers: Headers;
-};
-export type getDebriefResponseError = (getDebriefResponse401 | getDebriefResponse404 | getDebriefResponse409) & {
-  headers: Headers;
-};
-
-export type getDebriefResponse = (getDebriefResponseSuccess | getDebriefResponseError)
+export const useEndSession = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | InternalErrorResponse | UnavailableResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endSession>>, TError,EndSessionMutationVariables, TContext>, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof endSession>>,
+        TError,
+        EndSessionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getEndSessionMutationOptions(options), queryClient);
+    }
 
 export const getGetDebriefUrl = (id: string,) => {
 
@@ -1111,9 +977,9 @@ export const getGetDebriefUrl = (id: string,) => {
  * page reload mid-debrief.
  * @summary Re-read a finished session's debrief
  */
-export const getDebrief = async (id: string, options?: Parameters<typeof fetcher>[1]): Promise<getDebriefResponse> => {
+export const getDebrief = async (id: string, options?: Parameters<typeof fetcher>[1]): Promise<Debrief> => {
 
-  return fetcher<getDebriefResponse>(getGetDebriefUrl(id),
+  return fetcher<Debrief>(getGetDebriefUrl(id),
   {
     ...options,
     method: 'GET'
@@ -1126,50 +992,71 @@ export const getDebrief = async (id: string, options?: Parameters<typeof fetcher
 
 
 
-export const getGetDebriefMutationKey = () => ['getDebrief'] as const;
-
-export const getGetDebriefMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse | Error,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getDebrief>>, TError,GetDebriefMutationVariables, TContext>, request?: SecondParameter<typeof fetcher>}
-): UseMutationOptions<Awaited<ReturnType<typeof getDebrief>>, TError,GetDebriefMutationVariables, TContext> => {
-
-const mutationKey = getGetDebriefMutationKey();
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
+export const getGetDebriefQueryKey = (id: string,) => {
+    return [
+    `/api/sessions/${id}/debrief`
+    ] as const;
+    }
 
 
+export const getGetDebriefQueryOptions = <TData = Awaited<ReturnType<typeof getDebrief>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | Error | InternalErrorResponse | UnavailableResponse>>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDebrief>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDebriefQueryKey(id);
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getDebrief>>, GetDebriefMutationVariables> = (props) => {
-          const {id} = props ?? {};
 
-          return  getDebrief(id,requestOptions)
-        }
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDebrief>>> = ({ signal }) => getDebrief(id, { signal, ...requestOptions });
 
 
 
 
 
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDebrief>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
 
-  return  { mutationFn, ...mutationOptions }}
+export type GetDebriefQueryResult = NonNullable<Awaited<ReturnType<typeof getDebrief>>>
+export type GetDebriefQueryError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | Error | InternalErrorResponse | UnavailableResponse>
 
-    export type GetDebriefMutationResult = NonNullable<Awaited<ReturnType<typeof getDebrief>>>
 
-    export type GetDebriefMutationError = UnauthorizedResponse | NotFoundResponse | Error
-    export type GetDebriefMutationVariables = {id: string}
-
-    /**
+export function useGetDebrief<TData = Awaited<ReturnType<typeof getDebrief>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | Error | InternalErrorResponse | UnavailableResponse>>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDebrief>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDebrief>>,
+          TError,
+          Awaited<ReturnType<typeof getDebrief>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDebrief<TData = Awaited<ReturnType<typeof getDebrief>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | Error | InternalErrorResponse | UnavailableResponse>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDebrief>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDebrief>>,
+          TError,
+          Awaited<ReturnType<typeof getDebrief>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDebrief<TData = Awaited<ReturnType<typeof getDebrief>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | Error | InternalErrorResponse | UnavailableResponse>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDebrief>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
  * @summary Re-read a finished session's debrief
  */
-export const useGetDebrief = <TError = UnauthorizedResponse | NotFoundResponse | Error,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getDebrief>>, TError,GetDebriefMutationVariables, TContext>, request?: SecondParameter<typeof fetcher>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof getDebrief>>,
-        TError,
-        GetDebriefMutationVariables,
-        TContext
-      > => {
-      return useMutation(getGetDebriefMutationOptions(options), queryClient);
-    }
+
+export function useGetDebrief<TData = Awaited<ReturnType<typeof getDebrief>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | Error | InternalErrorResponse | UnavailableResponse>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDebrief>>, TError, TData>>, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDebriefQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}

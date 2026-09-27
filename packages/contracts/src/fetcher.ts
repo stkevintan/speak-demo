@@ -1,3 +1,5 @@
+import { ApiErrorBody } from "./zod/http.js";
+
 /**
  * The single `fetch` wrapper every generated hook calls.
  *
@@ -21,19 +23,34 @@ export class ApiError extends Error {
   }
 }
 
+/** Orval's hook error type is the thrown exception, not the JSON error body. */
+export type ErrorType<_Body> = ApiError;
+
 export async function fetcher<T>(url: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  if (!headers.has("content-type")) headers.set("content-type", "application/json");
   const response = await fetch(url, {
     ...init,
     credentials: "include",
-    headers: { "content-type": "application/json", ...init?.headers },
+    headers,
   });
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { code?: string; message?: string } | null;
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      throw new ApiError(response.status, "invalid_error_response", "The server returned an unreadable error.");
+    }
+    const parsed = ApiErrorBody.safeParse(body);
+    if (!parsed.success) {
+      throw new ApiError(response.status, "invalid_error_response", "The server returned an invalid error.");
+    }
     throw new ApiError(
       response.status,
-      body?.code ?? "unknown",
-      body?.message ?? "Something went wrong. Try again.",
+      parsed.data.code,
+      parsed.data.message,
     );
   }
 

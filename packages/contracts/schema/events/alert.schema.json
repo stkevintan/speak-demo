@@ -2,6 +2,23 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
+    "v": {
+      "type": "number",
+      "const": 1
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
     "type": {
       "type": "string",
       "const": "alert"
@@ -11,7 +28,7 @@
       "properties": {
         "code": {
           "type": "string",
-          "const": "mic_unavailable"
+          "minLength": 1
         },
         "message": {
           "type": "string",
@@ -26,6 +43,10 @@
     }
   },
   "required": [
+    "v",
+    "sessionId",
+    "id",
+    "seq",
     "type",
     "payload"
   ],

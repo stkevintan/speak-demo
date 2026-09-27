@@ -1,6 +1,6 @@
 {
   "name": "@rehearsal/contracts",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "The only cross-module dependency: HTTP, realtime and course contracts, plus the course loader.",
@@ -32,6 +32,7 @@
     "check:schema": "tsx src/bin/check-schema.ts",
     "codegen:schema": "tsx src/bin/check-schema.ts --write",
     "check:loader": "tsx src/bin/check-loader.ts",
+    "check:contracts": "tsx --test src/contracts.test.ts",
     "check:courses": "tsx src/bin/check-courses.ts"
   },
   "dependencies": {

@@ -2,6 +2,22 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
+    "v": {
+      "type": "number",
+      "const": 1
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "seq": {
+      "type": "number",
+      "const": 0
+    },
     "type": {
       "type": "string",
       "const": "session.end"
@@ -21,6 +37,10 @@
     }
   },
   "required": [
+    "v",
+    "sessionId",
+    "id",
+    "seq",
     "type",
     "payload"
   ],

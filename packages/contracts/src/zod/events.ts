@@ -1,95 +1,240 @@
 import { z } from "zod";
-import { CoachCard, Role, State } from "./session.js";
+import { CoachCard, EndReason, State, Turn } from "./session.js";
+import { ApiErrorBody, SessionId } from "./http.js";
 
-/**
- * The LiveKit data-channel surface — `ARCHITECTURE.md` §6.3.
- *
- * Every message is `{ type, payload }`, validated with zod on **both** ends so a
- * worker and a browser that disagree fail loudly at the seam instead of quietly
- * rendering nonsense.
- */
+export const PROTOCOL_VERSION = 1;
+export const REALTIME_TOPIC = "rehearsal.v1";
+export const MAX_REPLAY_EVENTS = 256;
+export const MAX_TYPED_TEXT_LENGTH = 4000;
 
-export const AgentState = z.object({
+const Id = z.string().min(1);
+const Sequence = z.number().int().nonnegative();
+const envelope = {
+  v: z.literal(PROTOCOL_VERSION),
+  sessionId: SessionId,
+  id: Id,
+};
+const command = { ...envelope, seq: z.literal(0) };
+const event = { ...envelope, seq: Sequence.min(1) };
+
+export const TranscriptEntry = z.strictObject({
+  ...Turn.shape,
+  turnId: Id,
+  source: z.enum(["asr", "typed", "character"]),
+}).superRefine((turn, ctx) => {
+  if (turn.tEnd < turn.tStart) {
+    ctx.addIssue({ code: "custom", path: ["tEnd"], message: "tEnd must not precede tStart" });
+  }
+  if ((turn.role === "character") !== (turn.source === "character")) {
+    ctx.addIssue({ code: "custom", path: ["source"], message: "source must match role" });
+  }
+});
+export type TranscriptEntry = z.infer<typeof TranscriptEntry>;
+
+export const IdentifiedCoachCard = z.strictObject({
+  ...CoachCard.shape,
+  findingId: Id,
+  turnId: Id,
+});
+export type IdentifiedCoachCard = z.infer<typeof IdentifiedCoachCard>;
+
+export const SuggestionPayload = z.strictObject({
+  prompt: z.string().min(1),
+  options: z.array(z.string().min(1)).min(1),
+});
+
+export const LearnerTurnPayload = z.strictObject({
+  turnId: Id,
+  canCommit: z.boolean(),
+});
+
+export const AgentState = z.strictObject({
+  ...event,
   type: z.literal("agent.state"),
-  payload: z.object({
-    /**
-     * Typed as the full `State` so there is only ever one state enum. In
-     * practice the worker emits the three live values — `idle` is the browser's
-     * own pre-connect state, and `ended` is delivered by the debrief.
-     */
-    state: State,
-  }),
+  payload: z.strictObject({ state: z.enum(["listening", "thinking", "speaking"]) }),
 });
 
-export const TranscriptFinal = z.object({
+export const TranscriptFinal = z.strictObject({
+  ...event,
   type: z.literal("transcript.final"),
-  payload: z.object({
-    role: Role,
-    text: z.string().min(1),
-    tStart: z.number().int().nonnegative(),
-    tEnd: z.number().int().nonnegative(),
-  }),
+  payload: TranscriptEntry,
 });
 
-/**
- * The **only** channel that carries a correction (§6.3). Nothing else in the
- * system can produce one, which is why the character cannot lecture even by
- * accident — the ban is a property of the wiring, not a prompt instruction a
- * model might ignore.
- */
-export const CoachCardEvent = z.object({
+export const CoachCardEvent = z.strictObject({
+  ...event,
   type: z.literal("coach.card"),
-  payload: CoachCard,
+  payload: IdentifiedCoachCard,
 });
 
-export const Suggestions = z.object({
+export const Suggestions = z.strictObject({
+  ...event,
   type: z.literal("suggestions"),
-  payload: z.object({
-    prompt: z.string().min(1),
-    options: z.array(z.string().min(1)).min(1),
-  }),
+  payload: SuggestionPayload,
 });
 
-export const Alert = z.object({
+export const Alert = z.strictObject({
+  ...event,
   type: z.literal("alert"),
-  payload: z.object({
-    code: z.literal("mic_unavailable"),
-    /** Plain language, and always paired with a next action (§8). */
-    message: z.string().min(1),
-  }),
+  payload: ApiErrorBody,
 });
 
-export const SessionEnd = z.object({
+export const LearnerTurn = z.strictObject({
+  ...event,
+  type: z.literal("learner.turn"),
+  payload: LearnerTurnPayload,
+});
+
+export const CommandAck = z.strictObject({
+  ...event,
+  type: z.literal("command.ack"),
+  payload: z.discriminatedUnion("status", [
+    z.strictObject({ commandId: Id, status: z.literal("accepted") }),
+    z.strictObject({ commandId: Id, status: z.literal("rejected"), code: z.string().min(1) }),
+  ]),
+});
+
+export const SessionEnded = z.strictObject({
+  ...event,
+  type: z.literal("session.ended"),
+  payload: z.strictObject({ reason: EndReason }),
+});
+
+export const LearnerCommit = z.strictObject({
+  ...command,
+  type: z.literal("learner.commit"),
+  payload: z.strictObject({ turnId: Id }),
+});
+
+export const LearnerText = z.strictObject({
+  ...command,
+  type: z.literal("learner.text"),
+  payload: z.strictObject({ text: z.string().trim().min(1).max(MAX_TYPED_TEXT_LENGTH) }),
+});
+
+export const LearnerInterrupt = z.strictObject({
+  ...command,
+  type: z.literal("learner.interrupt"),
+  payload: z.strictObject({}),
+});
+
+export const PreferencesUpdate = z.strictObject({
+  ...command,
+  type: z.literal("preferences.update"),
+  payload: z.strictObject({ suggestions: z.boolean() }),
+});
+
+export const SessionSync = z.strictObject({
+  ...command,
+  type: z.literal("session.sync"),
+  payload: z.strictObject({ afterSeq: Sequence }),
+});
+
+export const SessionEnd = z.strictObject({
+  ...command,
   type: z.literal("session.end"),
-  payload: z.object({ reason: z.literal("user") }),
+  payload: z.strictObject({ reason: z.literal("user") }),
 });
 
-export const RealtimeEvent = z.discriminatedUnion("type", [
-  AgentState,
-  TranscriptFinal,
-  CoachCardEvent,
-  Suggestions,
-  Alert,
-  SessionEnd,
+export const ClientCommand = z.discriminatedUnion("type", [
+  LearnerCommit, LearnerText, LearnerInterrupt, PreferencesUpdate, SessionSync, SessionEnd,
 ]);
+export type ClientCommand = z.infer<typeof ClientCommand>;
+
+export const DurableServerEvent = z.discriminatedUnion("type", [
+  AgentState, TranscriptFinal, CoachCardEvent, Suggestions, Alert,
+  LearnerTurn, CommandAck, SessionEnded,
+]);
+export type DurableServerEvent = z.infer<typeof DurableServerEvent>;
+
+export const SessionSnapshot = z.strictObject({
+  state: State,
+  learnerTurn: LearnerTurnPayload.nullable(),
+  transcript: z.array(TranscriptEntry),
+  cards: z.array(IdentifiedCoachCard),
+  suggestions: SuggestionPayload.nullable(),
+  preferences: z.strictObject({ suggestions: z.boolean() }),
+  endReason: EndReason.nullable(),
+}).refine((snapshot) => (snapshot.state === "ended") === (snapshot.endReason !== null), {
+  message: "ended state and endReason must agree",
+  path: ["endReason"],
+});
+export type SessionSnapshot = z.infer<typeof SessionSnapshot>;
+
+// Replay is a transport response, not a durable event: seq is the snapshot high-watermark.
+export const SessionReplay = z.strictObject({
+  ...envelope,
+  seq: Sequence,
+  type: z.literal("session.replay"),
+  payload: z.discriminatedUnion("mode", [
+    z.strictObject({
+      mode: z.literal("events"),
+      commandId: Id,
+      afterSeq: Sequence,
+      events: z.array(DurableServerEvent).max(MAX_REPLAY_EVENTS),
+    }),
+    z.strictObject({
+      mode: z.literal("snapshot"),
+      commandId: Id,
+      snapshot: SessionSnapshot,
+    }),
+  ]),
+}).superRefine((replay, ctx) => {
+  if (replay.payload.mode !== "events") return;
+  let previous = replay.payload.afterSeq;
+  const seen = new Set<string>();
+  for (const [index, entry] of replay.payload.events.entries()) {
+    if (entry.sessionId !== replay.sessionId || entry.seq !== previous + 1 || seen.has(entry.id)) {
+      ctx.addIssue({
+        code: "custom", path: ["payload", "events", index],
+        message: "replay must contain consecutive, uniquely identified events for this session",
+      });
+    }
+    seen.add(entry.id);
+    previous = entry.seq;
+  }
+  if (previous !== replay.seq) {
+    ctx.addIssue({ code: "custom", path: ["seq"], message: "replay must reach its high-watermark" });
+  }
+});
+export type SessionReplay = z.infer<typeof SessionReplay>;
+
+export const ServerEvent = z.union([DurableServerEvent, SessionReplay]);
+export type ServerEvent = z.infer<typeof ServerEvent>;
+export const RealtimeEvent = z.union([ClientCommand, ServerEvent]);
 export type RealtimeEvent = z.infer<typeof RealtimeEvent>;
 
-/** Direction of travel, so a handler can reject a message sent the wrong way. */
 export const EVENT_DIRECTION = {
   "agent.state": "worker->web",
   "transcript.final": "worker->web",
   "coach.card": "worker->web",
   suggestions: "worker->web",
   alert: "worker->web",
+  "learner.turn": "worker->web",
+  "command.ack": "worker->web",
+  "session.ended": "worker->web",
+  "session.replay": "worker->web",
+  "learner.commit": "web->worker",
+  "learner.text": "web->worker",
+  "learner.interrupt": "web->worker",
+  "preferences.update": "web->worker",
+  "session.sync": "web->worker",
   "session.end": "web->worker",
 } as const satisfies Record<RealtimeEvent["type"], "worker->web" | "web->worker">;
 
-/** Per-event schemas, for emitting one JSON Schema file each and for the wire decoder. */
 export const REALTIME_EVENTS = {
   "agent.state": AgentState,
   "transcript.final": TranscriptFinal,
   "coach.card": CoachCardEvent,
   suggestions: Suggestions,
   alert: Alert,
+  "learner.turn": LearnerTurn,
+  "command.ack": CommandAck,
+  "session.ended": SessionEnded,
+  "session.replay": SessionReplay,
+  "learner.commit": LearnerCommit,
+  "learner.text": LearnerText,
+  "learner.interrupt": LearnerInterrupt,
+  "preferences.update": PreferencesUpdate,
+  "session.sync": SessionSync,
   "session.end": SessionEnd,
 } as const;

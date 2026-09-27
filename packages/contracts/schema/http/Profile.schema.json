@@ -14,6 +14,9 @@
         "B2"
       ]
     },
+    "onboarded": {
+      "type": "boolean"
+    },
     "chinese": {
       "type": "boolean"
     },
@@ -51,6 +54,7 @@
   "required": [
     "userId",
     "level",
+    "onboarded",
     "chinese",
     "suggestions",
     "patterns"

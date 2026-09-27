@@ -15,33 +15,24 @@
       "minLength": 1
     },
     "seq": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 9007199254740991
+      "type": "number",
+      "const": 0
     },
     "type": {
       "type": "string",
-      "const": "suggestions"
+      "const": "session.sync"
     },
     "payload": {
       "type": "object",
       "properties": {
-        "prompt": {
-          "type": "string",
-          "minLength": 1
-        },
-        "options": {
-          "minItems": 1,
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
+        "afterSeq": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
         }
       },
       "required": [
-        "prompt",
-        "options"
+        "afterSeq"
       ],
       "additionalProperties": false
     }
