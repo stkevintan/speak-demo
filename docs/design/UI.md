@@ -45,8 +45,8 @@ Because he's a *character* rather than a status widget, "the coach is watching"
 reads as company instead of surveillance — and a learner who never reads a
 single feedback card still gets one clear signal from the corner of the screen.
 
-Pip is drawn in pure inline SVG on a 128×128 grid, so he costs nothing to ship,
-scales to any size, and can be animated per-mood later without new artwork.
+Pip is vector artwork on a fixed grid, so he costs nothing to ship, scales to any
+size, and can be animated per-mood later without new artwork.
 
 ---
 
@@ -245,8 +245,7 @@ one fill is darkened and carries white text.
   surface uses its darker `*-ink` tone. Violet is the one exception: its bright
   tone clears AA neither way, so the single violet fill carrying white text is
   darkened to `--violet-deep`.
-  `mockups/_check.js` verifies all of this on every build and fails on any pair
-  below AA.
+  The mockup build verifies all of this and fails on any pair below AA.
 - **Target size.** Interactive controls are ≥44px; the primary buttons are 52px.
 - **Focus.** Round buttons and switches take a visible focus ring; the live
   controls are reachable by keyboard in scene order.

@@ -32,9 +32,9 @@ Dana speaks first, in character: *"Hi there — how can I help you today?"*
 You reply. From here it's completely free-form — no script, no right answer, no fixed path. Dana reacts to whatever you actually say.
 
 **4 · Suggestion tips**
-Users can turn-on/off the "suggestions" switch, which dynamically analysis current question then show a tip to offer your some example responses that you can take.
+A "suggestions" switch the user can turn on or off. When it's on, the coach reads the current question and offers example responses you can tap.
 
-the "suggestions" tips should automatically open if users get stucked like keeping silence for 4 seconds.
+They open automatically when you get stuck — four seconds of silence.
 
 
 **5 · While you talk**
@@ -57,7 +57,7 @@ You tap End. The debrief:
 > **Everything you said, fixed:** a full list of your sentences with a better version of each.
 > **Next:** practise disagreeing without apologising first.
 
-**6 · Come back tomorrow**
+**7 · Come back tomorrow**
 It remembers. The next scene opens with:
 > *"Last time you dropped past tense three times — let's see if it sticks."*
 
