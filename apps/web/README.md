@@ -38,11 +38,7 @@ is validated before application, live events are buffered during sync, and a
 snapshot is a full public-state replacement. No access to worker bootstrap,
 Redis, checkpoints or private CloseAck.
 
-Microphone stays enabled during character speech for interruption. Local speech
-activity immediately silences attached character audio and sends
-`learner.interrupt`; worker speech activity also silences playback. The worker
-must cancel its generation/audio queue and send the next `speaking` state only
-for fresh audio. The browser does not implement its own ASR or TTS queue.
+its own ASR or TTS queue.
 
 Explicit End stops capture/playback and calls the idempotent CP end endpoint;
 CP owns flush/freeze/CloseAck. Natural `session.ended` (including a replayed ended

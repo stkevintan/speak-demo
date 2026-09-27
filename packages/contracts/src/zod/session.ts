@@ -224,6 +224,7 @@ export const CourseCard = z.strictObject({
   setting: z.string().min(1),
   edge: z.string().min(1),
   fit: CourseFit,
+  learned: z.boolean(),
 });
 export type CourseCard = z.infer<typeof CourseCard>;
 

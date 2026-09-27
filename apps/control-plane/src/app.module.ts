@@ -69,6 +69,6 @@ export class AppModule {
 export function configureApp(app: INestApplication, config: AppConfig) {
   app.setGlobalPrefix("api");
   app.useGlobalFilters(new ApiExceptionFilter());
-  app.enableCors({ origin: config.WEB_ORIGIN, credentials: true });
+  app.enableCors({ origin: config.WEB_ORIGINS, credentials: true });
   app.enableShutdownHooks();
 }

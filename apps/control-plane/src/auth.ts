@@ -18,8 +18,9 @@ export class AuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const response = context.switchToHttp().getResponse<Response>();
     const origin = request.headers.origin;
-    if ((origin && origin !== this.config.WEB_ORIGIN)
-      || (!["GET", "HEAD", "OPTIONS"].includes(request.method) && origin !== this.config.WEB_ORIGIN)) {
+    const safeMethod = ["GET", "HEAD", "OPTIONS"].includes(request.method);
+    if ((origin && !this.config.WEB_ORIGINS.includes(origin))
+      || (!safeMethod && !this.config.WEB_ORIGINS.includes(origin ?? ""))) {
       throw apiError(403, "origin_rejected", "This request did not come from the practice app.");
     }
     const cookies = (request.headers.cookie ?? "").split(";")
@@ -33,7 +34,7 @@ export class AuthGuard implements CanActivate {
       });
       response.cookie(AUTH_COOKIE_NAME, token, {
         httpOnly: true, sameSite: "lax",
-        secure: this.config.NODE_ENV === "production" || request.secure || this.config.WEB_ORIGIN.startsWith("https:"),
+        secure: this.config.NODE_ENV === "production" || request.secure || this.config.WEB_ORIGINS.some((origin) => origin.startsWith("https:")),
         path: "/", maxAge: this.config.JWT_TTL_SECONDS * 1000,
       });
       return true;

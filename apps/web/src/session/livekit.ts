@@ -27,6 +27,7 @@ export class LiveSession {
   private cancellingAudio = false;
   private micVersion = 0;
   private readonly agentIdentity: string;
+  private connecting: Promise<void> | null = null;
 
   constructor(private readonly grant: SessionStart, room?: Room) {
     this.room = room ?? new Room({
@@ -99,6 +100,13 @@ export class LiveSession {
   }
 
   async connect() {
+    if (this.connecting) return this.connecting;
+    this.connecting = this.connectOnce();
+    try { await this.connecting; } finally { this.connecting = null; }
+  }
+
+  private async connectOnce() {
+    if (this.disposed || this.room.state === "connected" || this.room.state === "connecting") return;
     try {
       await this.room.connect(this.grant.livekit.url, this.grant.livekit.token);
       if (this.disposed) { await this.room.disconnect(); return; }
@@ -250,7 +258,7 @@ export class LiveSession {
     this.tracks.forEach(track => track.detach().forEach(element => element.remove()));
     this.tracks.clear();
     this.room.removeAllListeners();
-    void this.room.disconnect().catch(() => {
+    if (this.room.state !== "disconnected") void this.room.disconnect().catch(() => {
       console.warn("Rehearsal room disconnect did not complete.");
     });
   }

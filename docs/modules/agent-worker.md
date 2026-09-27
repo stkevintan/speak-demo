@@ -13,7 +13,6 @@ The worker must remain useful when the control-plane is slow or temporarily unav
 - Validate commands, deduplicate stable command IDs, persist durable events before publication, and maintain bounded replay state.
 - Use manual endpointing and a learner-aware silence threshold (roughly 1200-2000ms); manual commit bypasses patience without bypassing ASR flush.
 - Run an isolated character path and an independent coach path. The character never receives coach findings and the coach never owns audio.
-- Preserve the synchronized played text prefix during barge-in and avoid exposing unplayed generated suffixes as spoken transcript.
 - Stop input, cancel work, drain/close the SDK, persist the final `session.ended` event, and write a matching frozen close acknowledgement.
 
 ## Hot path
@@ -37,7 +36,6 @@ Close requests are first-wins. The worker writes the final checkpoint and `Close
 
 ## Voice and coaching policy
 
-- Normal barge-in uses non-forced SDK interruption so played-prefix finalization remains correct.
 - Forced interruption is reserved for the logged drain-timeout path.
 - Natural goal/budget completion requests close; it does not forcibly cut off the learner.
 - Coach findings are complete internally, while rate-limited admitted cards are the only UI rail output.

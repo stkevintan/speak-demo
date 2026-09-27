@@ -71,7 +71,7 @@ That's the loop closing. That's why you come back.
 
 1. **Level question on first run, remembered** — calibrates how simple the AI's English is.
 2. **6 scenes to choose from** — each with a character, a goal, and something at stake.
-3. **Voice roleplay, in character** — free-form, and you can interrupt the AI mid-sentence.
+3. **Voice roleplay, in character** — free-form
 4. **Live feedback cards while you speak** — what you said, a better version, and why — in English and Chinese.
 5. **Debrief at the end** — did you win, what worked, what you repeated, every correction.
 6. **It remembers your patterns** — the next session picks up where you left off.
@@ -79,7 +79,7 @@ That's the loop closing. That's why you come back.
 
 **Cut if we run short:** pronunciation notes → register category → extra scenes.
 
-**Never cut, these three are the product:** being able to interrupt the AI · positive feedback cards · "did you win?"
+**Product priorities:** positive feedback cards, and answering "did you win?".
 
 ---
 

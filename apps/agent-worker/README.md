@@ -35,7 +35,8 @@ Provider/account support is not inferred from model names. A self-hosted LiveKit
 server without an Inference entitlement needs a separately configured provider
 adapter; the worker does not silently switch providers.
 
-No browser JWT or SQLite access is required. The pinned course, level,
+No browser JWT or SQLite access is required. The worker can run locally or as
+part of the repository-root `docker compose up --build` stack. The pinned course, level,
 preferences and recalled patterns come from the validated Redis bootstrap, not
 from a local YAML reload or browser-provided prompt.
 
@@ -71,10 +72,10 @@ recovery uses `network`, not an invented `error` enum member.
 
 - SDK manual endpointing plus a worker-owned silence timer; ASR segments do not
   independently commit learner turns. Manual commit skips patience, not ASR flush.
-- Speech onset explicitly invokes **non-forced** SDK interruption. Every worker
-  utterance remains interruptible. Forcing interruption marks the handle done
-  before played-text finalization; it is reserved for the logged drain-timeout
-  failure path. Normal end closes/drains the SDK before freezing the record.
+- The worker includes a preliminary non-forced SDK interruption path. End-to-end
+  barge-in is not yet reliable, so this must be treated as an unfinished capability
+  rather than a supported user-facing feature. Forced interruption remains reserved
+  for the logged drain-timeout failure path.
 - SDK synchronized playout transcripts preserve the played prefix. Room input
   and STT both use 24 kHz; Silero handles its own supported VAD input rate.
 - The character's outcome tool uses `addDoneCallback`, not a circular

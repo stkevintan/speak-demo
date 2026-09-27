@@ -9,7 +9,7 @@ const Env = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   HOST: z.string().min(1).default("127.0.0.1"),
   PORT: positive.max(65535).default(3000),
-  WEB_ORIGIN: z.url().default("http://localhost:5173"),
+  WEB_ORIGIN: z.string().default("http://localhost:5173"),
   JWT_SECRET: z.string().min(32),
   JWT_ISSUER: z.string().min(1).default("rehearsal-control-plane"),
   JWT_AUDIENCE: z.string().min(1).default("rehearsal-web"),
@@ -54,14 +54,22 @@ export function parseConfig(environment: NodeJS.ProcessEnv, root: string) {
   const devAuth = env.DEV_AUTH_ENABLED === "true"
     || (env.DEV_AUTH_ENABLED === undefined && env.NODE_ENV === "development");
   if (devAuth && env.NODE_ENV === "production") throw new Error("Development auth is forbidden in production");
-  const origin = new URL(env.WEB_ORIGIN);
-  if (origin.origin !== env.WEB_ORIGIN || !["http:", "https:"].includes(origin.protocol)) {
-    throw new Error("WEB_ORIGIN must be an HTTP origin without a trailing slash");
+  const webOrigins = env.WEB_ORIGIN.split(",").map((value) => value.trim()).filter(Boolean);
+  if (webOrigins.length === 0 || webOrigins.some((value) => {
+    try {
+      const origin = new URL(value);
+      return origin.origin !== value || !["http:", "https:"].includes(origin.protocol);
+    } catch {
+      return true;
+    }
+  })) {
+    throw new Error("WEB_ORIGIN must contain comma-separated HTTP origins without trailing slashes");
   }
   const directory = (value: string | undefined, fallback: string) =>
     value && isAbsolute(value) ? value : resolve(root, value ?? fallback);
   return Object.freeze({
     ...env,
+    WEB_ORIGINS: webOrigins,
     devAuth,
     dataDir: directory(env.DATA_DIR, "apps/control-plane/.data"),
     coursesDir: directory(env.COURSES_DIR, "courses"),

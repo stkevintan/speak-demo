@@ -25,8 +25,9 @@ pnpm --filter @rehearsal/contracts build
 pnpm --filter @rehearsal/control-plane dev
 ```
 
-Start Redis separately (`redis-server` locally) and configure a running LiveKit
-server and the named worker. No Docker or fake provider fallback is included.
+Start Redis separately (`redis-server` locally), or use the repository-root
+`docker compose up --build` stack. Configure a running LiveKit server and the
+named worker; Docker does not provide a fake provider fallback.
 The worker must use explicit dispatch with the same `LIVEKIT_AGENT_NAME`.
 
 Set these variables in the repository-root `.env` (never commit values):

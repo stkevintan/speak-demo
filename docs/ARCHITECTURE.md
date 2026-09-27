@@ -19,7 +19,7 @@ never sees.
 |---|---|---|
 | Repo | pnpm workspace monorepo, Node + TypeScript | Three deployables share one set of types |
 | `web` | React + Vite + Tailwind + orval/React Query + zustand + lucide | `CODE_INSTRUCTION.md` §Web |
-| `control-plane` | NestJS + SQLite + Redis | `CODE_INSTRUCTION.md` §API |
+| `control-plane` | NestJS + Drizzle ORM + SQLite + Redis | `CODE_INSTRUCTION.md` §API |
 | `agent-worker` | LiveKit Agents (Node) | `PROMPT.md` requires LiveKit |
 | Contracts | OpenAPI → orval; JSON Schema + zod | `CODE_INSTRUCTION.md` §Contract first |
 
@@ -61,7 +61,7 @@ flowchart TB
         VOICE["ASR + TTS"]
     end
 
-    SQL[("SQLite<br/>profile · courses · debriefs · patterns")]
+    SQL[("SQLite + Drizzle ORM<br/>relational profiles · courses · sessions · debriefs · patterns")]
     RED[("Redis<br/>live session · transcript stream")]
     COURSES["courses/*.yaml<br/>mounted volume"]
 
@@ -94,7 +94,8 @@ instruction a model might ignore. Corrections have exactly one channel
 rehearsal/
 ├── pnpm-workspace.yaml
 ├── tsconfig.base.json
-├── docker-compose.yml          # added at the end — see §10
+├── Dockerfile                  # multi-stage API and worker images
+├── docker-compose.yml          # web, API, worker, and Redis services
 ├── .env.example
 ├── courses/                    # mounted as a volume
 │   ├── refund.yaml
@@ -158,10 +159,12 @@ process memory.
 | `StorageModule` | The only code that knows SQLite or Redis exist |
 
 **`StorageModule` is the seam that matters.** Repositories are interfaces
-(`ProfileRepo`, `SessionRepo`, `PatternRepo`, `CourseRepo`) with SQLite-backed
-implementations behind them. Redis is reached only through a `LiveSessionStore`.
-No feature module imports a driver directly, which is what makes §9 a
-configuration change rather than a rewrite.
+(`ProfileRepo`, `SessionRepo`, `PatternRepo`, `CourseRepo`) with a Drizzle ORM
+SQLite implementation behind them. The v2 database is fully relational: nested
+course, session, debrief, and memory data lives in typed child tables rather than
+JSON columns. Redis is reached only through a `LiveSessionStore`. No feature
+module imports a driver directly, which is what makes §9 a configuration change
+rather than a rewrite.
 
 ### 4.3 `agent-worker`
 
@@ -187,9 +190,10 @@ learners who pause to find a word or conjugate a verb. Policy:
   bans "press record" because *connecting is starting*, and the same control on
   the idle screen is exactly that button. Mid-turn it is a way to **finish**,
   never a way to start.
-- **Barge-in always wins.** Learner speech during TTS cancels playback
-  immediately, and the character's already-spoken text stays in the transcript —
-  dropping it makes the conversation incoherent.
+- **Interruption is a target behavior, not a completed capability.** The current
+  implementation has interruption hooks, but learner speech during TTS does not
+  reliably cancel playback end to end. Once completed, the character's already-
+  spoken text must remain in the transcript while only unplayed output is removed.
 - **The latency cost is deliberate.** Being cut off mid-thought is the failure
   `PRODUCT.md` cares most about, and the learner can always commit manually.
 
@@ -598,9 +602,10 @@ Every row ends in a next action. No path leaves the learner stuck.
 
 `PROMPT.md` asks for this explicitly. In rough order of when each thing breaks:
 
-1. **SQLite is the first wall** — single-writer. Move to Postgres behind the same
-   `StorageModule` interfaces (this is why the storage layer exists). Sessions
-   are already keyed by id, so nothing above the repository changes.
+1. **SQLite is the first wall** — single-writer. Move the Drizzle-backed
+   repository to Postgres behind the same `StorageModule` interfaces (this is why
+   the storage layer exists). Sessions are already keyed by id, so nothing above
+   the repository changes.
 2. **`control-plane` scales out as-is.** Stateless and JWT-authenticated, so it
    goes behind a load balancer with no sticky sessions; Redis becomes Redis
    Cluster.
