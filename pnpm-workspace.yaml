@@ -4,6 +4,7 @@ packages:
 allowBuilds:
   # tsx runs on esbuild; its postinstall fetches the platform binary.
   esbuild: true
+  better-sqlite3: true
 minimumReleaseAgeExclude:
   - '@orval/angular@8.38.0'
   - '@orval/axios@8.38.0'
