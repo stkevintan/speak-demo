@@ -265,7 +265,7 @@ export class Session {
   async idle(): Promise<void> {
     if (this.ending || !this.ready || this.current.snapshot.state !== "listening" || this.detector.hasPending) return;
     const elapsed = this.time.now() - this.idleSince;
-    if (elapsed >= 2000 && this.current.snapshot.preferences.suggestions && !this.offeredSuggestions && !this.suggesting) {
+    if (elapsed >= 200 && this.current.snapshot.preferences.suggestions && !this.offeredSuggestions && !this.suggesting) {
       this.offeredSuggestions = true;
       this.suggesting = true;
       const generation = this.generation;

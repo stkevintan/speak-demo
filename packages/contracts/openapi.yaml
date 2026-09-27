@@ -114,6 +114,25 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/courses/{id}/unlearn:
+    post:
+      tags: [courses]
+      summary: Mark a learned course as unlearned
+      operationId: unlearnCourse
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+      responses:
+        "204":
+          description: Course learning state cleared.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/courses/{id}:
     get:
       tags: [courses]

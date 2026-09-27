@@ -81,6 +81,26 @@ test("Nest routes enforce contracts, auth, ownership, onboarding and durable com
   assert.equal(live.data.has(sessionId), false);
   assert.equal(rooms.created.size, 0);
 
+  const won = SessionStart.parse((await request(server).post("/api/sessions")
+    .set("Cookie", cookie).set("Origin", origin).send({ courseId: "refund" }).expect(201)).body);
+  const checkpoint = live.data.get(won.sessionId)?.checkpoint;
+  assert.ok(checkpoint);
+  checkpoint.goalMet = true;
+  await request(server).post(`/api/sessions/${won.sessionId}/end`)
+    .set("Cookie", cookie).set("Origin", origin).expect(200);
+  const learned = await request(server).get("/api/courses").set("Cookie", cookie).expect(200);
+  assert.equal(z.array(CourseCard).parse(learned.body).find((course) => course.id === "refund")?.learned, true);
+  await request(server).post("/api/courses/refund/unlearn").set("Cookie", `${AUTH_COOKIE_NAME}=${foreign}`)
+    .set("Origin", origin).expect(204);
+  await request(server).get(`/api/sessions/${won.sessionId}/debrief`).set("Cookie", cookie).expect(200);
+  await request(server).post("/api/courses/refund/unlearn").set("Cookie", cookie).set("Origin", origin).expect(204);
+  await request(server).post("/api/courses/refund/unlearn").set("Cookie", cookie).set("Origin", origin).expect(204);
+  const unlearned = await request(server).get("/api/courses").set("Cookie", cookie).expect(200);
+  assert.equal(z.array(CourseCard).parse(unlearned.body).find((course) => course.id === "refund")?.learned, false);
+  await request(server).get(`/api/sessions/${won.sessionId}/debrief`).set("Cookie", cookie).expect(409);
+  await request(server).get(`/api/sessions/${sessionId}/debrief`).set("Cookie", cookie).expect(200);
+  await request(server).post("/api/courses/missing/unlearn").set("Cookie", cookie).set("Origin", origin).expect(404);
+
   rooms.failCreate = true;
   await request(server).post("/api/sessions").set("Cookie", cookie).set("Origin", origin)
     .send({ courseId: "refund" }).expect(503);

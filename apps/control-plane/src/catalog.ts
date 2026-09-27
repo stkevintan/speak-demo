@@ -34,10 +34,10 @@ export class CourseService {
     if (!courses.length) throw new Error("No valid courses available");
     await this.repo.replaceCatalog(courses);
   }
-  async list(level: Level) {
+  async list(level: Level, learned = new Set<string>()) {
     const order = { on_level: 0, easy: 1, stretch: 2 };
-    return (await this.repo.listCourses()).map((course) => toCourseCard(course, level))
-      .sort((a, b) => order[a.fit] - order[b.fit] || a.id.localeCompare(b.id));
+    return (await this.repo.listCourses()).map((course) => toCourseCard(course, level, learned.has(course.id)))
+      .sort((a, b) => Number(a.learned) - Number(b.learned) || order[a.fit] - order[b.fit] || a.id.localeCompare(b.id));
   }
   async get(id: string) {
     const course = await this.repo.course(id);

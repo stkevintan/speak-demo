@@ -34,6 +34,8 @@ export abstract class SessionRepo {
   abstract setStatus(id: string, status: StoredSession["status"]): Promise<void>;
   abstract pending(): Promise<StoredSession[]>;
   abstract debrief(id: string): Promise<Debrief | undefined>;
+  abstract learnedCourses(userId: string): Promise<Set<string>>;
+  abstract unlearnCourse(userId: string, courseId: string): Promise<void>;
   abstract complete(id: string, debrief: Debrief, deltas: PatternDelta[], reason: EndReason): Promise<Debrief>;
   abstract cleaned(id: string): Promise<void>;
 }

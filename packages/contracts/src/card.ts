@@ -32,7 +32,7 @@ export function courseFit(course: Course, level: Level): CourseFit {
  * picks a palette entry, never a hex, which is what keeps every pair in
  * `UI.md` §6 at its verified contrast ratio.
  */
-export function toCourseCard(course: Course, level: Level): CourseCard {
+export function toCourseCard(course: Course, level: Level, learned = false): CourseCard {
   return {
     id: course.id,
     title: course.title,
@@ -45,6 +45,7 @@ export function toCourseCard(course: Course, level: Level): CourseCard {
     setting: course.stakes.setting,
     edge: course.stakes.edge,
     fit: courseFit(course, level),
+    learned,
   };
 }
 

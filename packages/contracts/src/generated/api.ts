@@ -696,6 +696,80 @@ export function useListCourses<TData = Awaited<ReturnType<typeof listCourses>>, 
 
 
 
+export const getUnlearnCourseUrl = (id: string,) => {
+
+
+
+
+  return `/api/courses/${id}/unlearn`
+}
+
+/**
+ * @summary Mark a learned course as unlearned
+ */
+export const unlearnCourse = async (id: string, options?: Parameters<typeof fetcher>[1]): Promise<void> => {
+
+  return fetcher<void>(getUnlearnCourseUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnlearnCourseMutationKey = () => ['unlearnCourse'] as const;
+
+export const getUnlearnCourseMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | InternalErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlearnCourse>>, TError,UnlearnCourseMutationVariables, TContext>, request?: SecondParameter<typeof fetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof unlearnCourse>>, TError,UnlearnCourseMutationVariables, TContext> => {
+
+const mutationKey = getUnlearnCourseMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unlearnCourse>>, UnlearnCourseMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  unlearnCourse(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnlearnCourseMutationResult = NonNullable<Awaited<ReturnType<typeof unlearnCourse>>>
+
+    export type UnlearnCourseMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | InternalErrorResponse>
+    export type UnlearnCourseMutationVariables = {id: string}
+
+    /**
+ * @summary Mark a learned course as unlearned
+ */
+export const useUnlearnCourse = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | InternalErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlearnCourse>>, TError,UnlearnCourseMutationVariables, TContext>, request?: SecondParameter<typeof fetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof unlearnCourse>>,
+        TError,
+        UnlearnCourseMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUnlearnCourseMutationOptions(options), queryClient);
+    }
+
 export const getGetCourseUrl = (id: string,) => {
 
 

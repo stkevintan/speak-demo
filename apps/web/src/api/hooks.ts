@@ -4,7 +4,7 @@ import {
 import {
   endSession, getGetDebriefQueryKey, getGetMeQueryKey, getListCoursesQueryKey,
   patchMe, startSession, useEndSession, useGetDebrief, useGetMe,
-  useListCourses, usePatchMe, useStartSession,
+  useListCourses, usePatchMe, useStartSession, useUnlearnCourse,
 } from "@rehearsal/contracts/generated";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -31,6 +31,16 @@ export function useSaveProfile() {
         client.setQueryData(getGetMeQueryKey(), profile);
         void client.invalidateQueries({ queryKey: getListCoursesQueryKey() });
       },
+    },
+  });
+}
+
+export function useUnlearn() {
+  const client = useQueryClient();
+  return useUnlearnCourse({
+    mutation: {
+      retry: false,
+      onSuccess: () => { void client.invalidateQueries({ queryKey: getListCoursesQueryKey() }); },
     },
   });
 }

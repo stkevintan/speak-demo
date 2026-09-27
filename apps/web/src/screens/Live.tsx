@@ -93,17 +93,20 @@ export function Live({ profile }: { profile: Profile }) {
     try { await action(); } catch (error) { setActionError(errorMessage(error)); }
   };
 
-  const send = async () => {
-    if (sendLock.current || !draft.trim() || !live.current) return;
+  const sendText = async (text: string) => {
+    const value = text.trim();
+    if (sendLock.current || !value || !live.current) return;
     sendLock.current = true;
     setSending(true);
     setActionError(null);
     try {
-      await live.current.command({ type: "learner.text", payload: { text: draft.trim() } });
+      await live.current.command({ type: "learner.text", payload: { text: value } });
       setDraft("");
     } catch (error) { setActionError(errorMessage(error)); }
     finally { sendLock.current = false; setSending(false); }
   };
+
+  const send = async () => { await sendText(draft); };
 
   const setSuggestions = async (suggestions: boolean) => {
     const controller = live.current;
@@ -206,7 +209,6 @@ export function Live({ profile }: { profile: Profile }) {
               setFollowing(true);
               requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
             }}><ArrowDown size={16} />Latest messages</button>}
-            <p className="mt-4 text-xs font-bold text-muted">{state.mode === "typing" ? "Same conversation. Same quiet coach." : "Speak naturally. You can interrupt the character."}</p>
           </section>
 
           <div className="mt-4 shrink-0 rounded-[26px] bg-white p-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-card sm:p-4">
@@ -247,12 +249,8 @@ export function Live({ profile }: { profile: Profile }) {
             {suggestions && <section className="rounded-[22px] border-l-[5px] border-violet bg-violet-soft/40 p-4">
               <h3 className="flex items-center gap-2 text-xs font-black uppercase text-violet-ink"><Sparkles size={16} />Try a reply</h3>
               <p className="mt-2 text-sm font-semibold text-body">{suggestions.prompt}</p>
-              {suggestions.options.map((option, i) => <button key={i} disabled={!available} className="mt-2 block min-h-11 w-full rounded-xl bg-white p-3 text-left text-sm font-bold leading-relaxed text-body" onClick={() => {
-                void live.current?.typeInstead();
-                setDraft(option);
-                setTimeout(() => composer.current?.focus(), 0);
-              }}>{option}</button>)}
-              <p className="mt-3 text-xs text-muted">Tap to edit a reply, or say it your own way.</p>
+              {suggestions.options.map((option, i) => <button key={i} disabled={!available || sending} className="mt-2 block min-h-11 w-full rounded-xl bg-white p-3 text-left text-sm font-bold leading-relaxed text-body disabled:opacity-60" onClick={() => { void sendText(option); }}>{option}</button>)}
+              <p className="mt-3 text-xs text-muted">Tap a reply to send it, or say it your own way.</p>
             </section>}
           </div>
         </aside>

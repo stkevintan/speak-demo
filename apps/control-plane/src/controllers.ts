@@ -7,6 +7,7 @@ import { AuthGuard, type AuthenticatedRequest } from "./auth.js";
 import { ProfileService } from "./memory.js";
 import { CourseService } from "./catalog.js";
 import { SessionService } from "./sessions.js";
+import { SessionRepo } from "./storage/ports.js";
 import { apiError } from "./errors.js";
 
 function input<T>(schema: z.ZodType<T>, value: unknown): T {
@@ -33,13 +34,22 @@ export class CourseController {
   constructor(
     @Inject(CourseService) private readonly courses: CourseService,
     @Inject(ProfileService) private readonly profiles: ProfileService,
+    @Inject(SessionRepo) private readonly sessions: SessionRepo,
   ) {}
   @Get()
   async list(@Req() request: AuthenticatedRequest) {
-    return z.array(CourseCard).parse(await this.courses.list((await this.profiles.get(request.userId)).level));
+    const profile = await this.profiles.get(request.userId);
+    return z.array(CourseCard).parse(await this.courses.list(profile.level, await this.sessions.learnedCourses(request.userId)));
   }
   @Get(":id")
   async get(@Param("id") id: string) { return Course.parse(await this.courses.get(input(CourseId, id))); }
+  @Post(":id/unlearn")
+  @HttpCode(204)
+  async unlearn(@Req() request: AuthenticatedRequest, @Param("id") id: string) {
+    const courseId = input(CourseId, id);
+    await this.courses.get(courseId);
+    await this.sessions.unlearnCourse(request.userId, courseId);
+  }
 }
 
 @Controller("sessions")

@@ -22,7 +22,7 @@ The active session owns its pinned course, level, preferences, and recalled patt
 
 ## Live interaction
 
-The UI keeps microphone capture available during character speech so learner speech can interrupt. The controller silences local playback immediately, sends `learner.interrupt`, and lets the worker decide the authoritative played prefix. The browser does not implement its own ASR, TTS queue, or turn commitment logic.
+The UI and controller contain a preliminary interruption path: microphone capture may remain available during character speech, local playback can be silenced, and `learner.interrupt` can be sent. Reliable end-to-end barge-in is not yet implemented, so this is not a supported user-facing capability. The browser does not implement its own ASR, TTS queue, or turn commitment logic.
 
 Reconnect uses the existing SDK connection and protocol replay. A cold page reload cannot resume without token renewal; the UI offers debrief retrieval/finish instead of pretending the old room is recoverable. Ending is terminal for the UI even if stale realtime state arrives later.
 
