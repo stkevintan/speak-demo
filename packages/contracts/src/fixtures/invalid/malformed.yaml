@@ -1,0 +1,5 @@
+# Not valid YAML at all — the flow sequence is never closed. A syntax layer is
+# new with this format, so it gets its own failure path and its own message.
+id: refund
+version: 1
+title: [Returning a faulty item

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "userId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "level": {
+      "type": "string",
+      "enum": [
+        "A2",
+        "B1",
+        "B2"
+      ]
+    },
+    "chinese": {
+      "type": "boolean"
+    },
+    "suggestions": {
+      "type": "boolean"
+    },
+    "patterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "minLength": 1
+          },
+          "count": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "lastSeen": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "category",
+          "count",
+          "lastSeen"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "userId",
+    "level",
+    "chinese",
+    "suggestions",
+    "patterns"
+  ],
+  "additionalProperties": false
+}

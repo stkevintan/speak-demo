@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "coach.card"
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "nice",
+            "nit"
+          ]
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 1
+        },
+        "better": {
+          "type": "string",
+          "minLength": 1
+        },
+        "en": {
+          "type": "string",
+          "minLength": 1
+        },
+        "zh": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "kind",
+        "category",
+        "quote",
+        "en",
+        "zh"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "type",
+    "payload"
+  ],
+  "additionalProperties": false
+}

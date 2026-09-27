@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "level": {
+      "type": "string",
+      "enum": [
+        "A2",
+        "B1",
+        "B2"
+      ]
+    },
+    "chinese": {
+      "type": "boolean"
+    },
+    "suggestions": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}

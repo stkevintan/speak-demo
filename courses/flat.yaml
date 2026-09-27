@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=../packages/contracts/schema/course.schema.json
+id: flat
+version: 1
+title: Renting a flat
+levels: [B1]
+accent: teal
+budget:
+  learnerTurns: 12
+avatar:
+  style: glasses
+  mood: neutral
+  hair: "#5A3B2E"
+  skin: "#FFD3B0"
+stakes:
+  you: a tenant with questions and a budget
+  setting: An empty flat with new paint smell
+  edge: has three other viewers today
+goal: Ask about the deposit without sounding difficult
+counterpart:
+  name: Priya
+  role: Landlord
+  goal: Get through the viewing and pick a tenant today.
+opener: Hi — come in, mind the paint. I've got two more people coming after you, so I'll keep it quick.
+coachHints:
+  - Soften the question, not the question itself.
+  - Ask about the deposit as a process question, not an accusation.
+  - Confirm one thing in writing before you leave.
+prompts:
+  character: |
+    You are Priya, the landlord, showing an empty flat. Three more viewings today, so
+    you are brisk but not rude. You answer questions with short answers and you do
+    not volunteer problems. You warm up only if the learner is organised and asks
+    clear questions rather than hinting. Never break character to teach.
+  coach: |
+    Watch for demands dressed as questions — "I want to know if..." — and for
+    missing polite question forms like "would you mind" or "do you know if". Also
+    watch vague quantifiers about money. One note at a time, and praise a specific
+    phrase rather than a general "good job".

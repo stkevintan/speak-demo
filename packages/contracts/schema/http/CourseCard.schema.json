@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "levels": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "A2",
+          "B1",
+          "B2"
+        ]
+      }
+    },
+    "accent": {
+      "type": "string",
+      "enum": [
+        "coral",
+        "violet",
+        "teal",
+        "sun",
+        "sky",
+        "pink"
+      ]
+    },
+    "avatar": {
+      "type": "object",
+      "properties": {
+        "style": {
+          "type": "string",
+          "enum": [
+            "bob",
+            "short",
+            "bun",
+            "cap",
+            "glasses",
+            "long"
+          ]
+        },
+        "mood": {
+          "type": "string",
+          "enum": [
+            "stern",
+            "neutral",
+            "warm"
+          ]
+        },
+        "hair": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "skin": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        }
+      },
+      "required": [
+        "style",
+        "mood",
+        "hair",
+        "skin"
+      ],
+      "additionalProperties": false
+    },
+    "counterpart": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "name",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 1
+    },
+    "you": {
+      "type": "string",
+      "minLength": 1
+    },
+    "setting": {
+      "type": "string",
+      "minLength": 1
+    },
+    "edge": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fit": {
+      "type": "string",
+      "enum": [
+        "easy",
+        "on_level",
+        "stretch"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "levels",
+    "accent",
+    "avatar",
+    "counterpart",
+    "goal",
+    "you",
+    "setting",
+    "edge",
+    "fit"
+  ],
+  "additionalProperties": false
+}

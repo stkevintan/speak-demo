@@ -1,0 +1,11 @@
+{
+  "bad-level": "at levels[0]",
+  "empty": "expected object, received null",
+  "malformed": "invalid YAML",
+  "missing-prompts": "at prompts",
+  "too-many-turns": "learnerTurns may not exceed 20",
+  "typo-key": "Unrecognized key: \"level\"",
+  "unknown-key": "Unrecognized key: \"expectedResponses\"",
+  "unknown-stakes-key": "Unrecognized key: \"roll\"",
+  "unquoted-hex": "at avatar.hair"
+}

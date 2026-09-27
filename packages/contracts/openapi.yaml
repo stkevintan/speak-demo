@@ -1,0 +1,244 @@
+openapi: 3.1.0
+
+info:
+  title: Rehearsal control-plane
+  version: 0.1.0
+  description: |
+    The seven endpoints the browser calls — `ARCHITECTURE.md` §6.2.
+
+    Written before the API, per `CODE_INSTRUCTION.md`'s contract-first rule, and
+    the source of truth for the orval-generated client. Nothing else in the
+    product is HTTP: once a session starts, the browser talks to the worker over
+    the LiveKit data channel instead (§6.3).
+
+    Component schemas are `$ref`s into `schema/`, which is generated from the zod
+    validators the server and the worker actually run. The spec cannot drift from
+    the code because it does not restate it — `pnpm check:schema` fails on drift.
+
+servers:
+  - url: http://localhost:3000
+    description: Local development.
+
+tags:
+  - name: me
+  - name: courses
+  - name: sessions
+
+paths:
+  /api/me:
+    get:
+      tags: [me]
+      summary: The signed-in learner's profile
+      operationId: getMe
+      responses:
+        "200":
+          description: The profile, including recalled patterns from past sessions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    patch:
+      tags: [me]
+      summary: Update level and the two preferences
+      operationId: patchMe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfilePatch"
+      responses:
+        "200":
+          description: The updated profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/courses:
+    get:
+      tags: [courses]
+      summary: Every course, badged for this learner
+      description: |
+        `levels` orders and badges, it never hides (§4.4) — so this always
+        returns the full set and `fit` says which one is on level.
+      operationId: listCourses
+      responses:
+        "200":
+          description: All courses, each with a `fit` badge for the caller's level.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CourseCard"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/courses/{id}:
+    get:
+      tags: [courses]
+      summary: One course, fully parsed
+      operationId: getCourse
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+      responses:
+        "200":
+          description: The parsed course — the same object `parseCourse` returns.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Course"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/sessions:
+    post:
+      tags: [sessions]
+      summary: Start a session
+      description: |
+        Creates the room, mints a token scoped to it, and returns the patterns
+        worth recalling. The browser never holds a LiveKit key, only this token.
+      operationId: startSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [courseId]
+              additionalProperties: false
+              properties:
+                courseId:
+                  type: string
+                  pattern: "^[a-z][a-z0-9-]*$"
+      responses:
+        "201":
+          description: |
+            The session id, the LiveKit grant, and `recalled` — the slips from
+            previous sessions the coach should watch for (§5.5).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionStart"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/sessions/{id}/end:
+    post:
+      tags: [sessions]
+      summary: End the session and get the debrief
+      description: |
+        Reachable from every state, including before the learner has said
+        anything (§5.7). Idempotent — a second call returns the same debrief
+        rather than a second one.
+      operationId: endSession
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: The debrief. Built once, then served from storage.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Debrief"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/sessions/{id}/debrief:
+    get:
+      tags: [sessions]
+      summary: Re-read a finished session's debrief
+      description: |
+        The same object `endSession` returned, for the history screen and for a
+        page reload mid-debrief.
+      operationId: getDebrief
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: The stored debrief.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Debrief"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The session has not ended yet, so there is no debrief to read.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  parameters:
+    CourseId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[a-z][a-z0-9-]*$"
+    SessionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+
+  schemas:
+    # Named `$ref`s into `schema/`, which is generated from zod. Naming them here
+    # is what gives orval a clean model name (`Debrief`, not `endSession200`),
+    # and it keeps a single place to see every shape that crosses HTTP.
+    Profile:
+      $ref: "./schema/http/Profile.schema.json"
+    ProfilePatch:
+      $ref: "./schema/http/ProfilePatch.schema.json"
+    Course:
+      $ref: "./schema/course.schema.json"
+    CourseCard:
+      $ref: "./schema/http/CourseCard.schema.json"
+    SessionStart:
+      $ref: "./schema/http/SessionStart.schema.json"
+    Debrief:
+      $ref: "./schema/http/Debrief.schema.json"
+    Error:
+      type: object
+      required: [code, message]
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          description: Stable and machine-readable.
+        message:
+          type: string
+          description: Plain language, shown to the learner as-is.
+
+  responses:
+    Unauthorized:
+      description: No valid session token.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: No such course or session.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

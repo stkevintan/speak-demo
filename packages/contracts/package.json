@@ -1,0 +1,56 @@
+{
+  "name": "@rehearsal/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The only cross-module dependency: HTTP, realtime and course contracts, plus the course loader.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./generated": {
+      "types": "./dist/generated/api.d.ts",
+      "default": "./dist/generated/api.js"
+    },
+    "./fetcher": {
+      "types": "./dist/fetcher.d.ts",
+      "default": "./dist/fetcher.js"
+    },
+    "./openapi.yaml": "./openapi.yaml",
+    "./schema/*": "./schema/*"
+  },
+  "files": [
+    "dist",
+    "schema",
+    "openapi.yaml"
+  ],
+  "scripts": {
+    "codegen": "orval --config orval.config.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check:schema": "tsx src/bin/check-schema.ts",
+    "codegen:schema": "tsx src/bin/check-schema.ts --write",
+    "check:loader": "tsx src/bin/check-loader.ts",
+    "check:courses": "tsx src/bin/check-courses.ts"
+  },
+  "dependencies": {
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "orval": "^8.38.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "@tanstack/react-query": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/react-query": {
+      "optional": true
+    }
+  }
+}

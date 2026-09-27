@@ -1,0 +1,2 @@
+# An author created the file and has not filled it in yet. Parses to `null`,
+# which must be rejected with the file name rather than crashing the loader.

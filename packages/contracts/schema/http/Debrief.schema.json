@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "won": {
+      "type": "boolean"
+    },
+    "headline": {
+      "type": "string",
+      "minLength": 1
+    },
+    "worked": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "watch": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "corrections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "minLength": 1
+          },
+          "quote": {
+            "type": "string",
+            "minLength": 1
+          },
+          "better": {
+            "type": "string",
+            "minLength": 1
+          },
+          "en": {
+            "type": "string",
+            "minLength": 1
+          },
+          "zh": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "category",
+          "quote",
+          "better",
+          "en",
+          "zh"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "next": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "won",
+    "headline",
+    "worked",
+    "watch",
+    "corrections",
+    "next"
+  ],
+  "additionalProperties": false
+}

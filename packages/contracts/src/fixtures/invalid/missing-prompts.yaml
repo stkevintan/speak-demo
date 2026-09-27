@@ -1,0 +1,24 @@
+# No `prompts` block. The character and coach instructions are the whole point of
+# the file, so a course without them must not load.
+id: refund
+version: 1
+title: Returning a faulty item
+levels: [B1]
+accent: violet
+avatar:
+  style: bob
+  mood: stern
+  hair: "#3D3659"
+  skin: "#FFD3B0"
+stakes:
+  you: a customer with a broken item and no receipt
+  setting: A busy electronics store, Saturday afternoon
+  edge: would rather you went away
+goal: Get a refund without escalating.
+counterpart:
+  name: Dana
+  role: Store clerk
+  goal: Get the learner out of the queue without a refund.
+opener: Hi — how can I help you today?
+coachHints:
+  - Push back once before you accept the first no.

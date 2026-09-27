@@ -63,7 +63,7 @@ flowchart TB
 
     SQL[("SQLite<br/>profile · courses · debriefs · patterns")]
     RED[("Redis<br/>live session · transcript stream")]
-    COURSES["courses/*.md<br/>mounted volume"]
+    COURSES["courses/*.yaml<br/>mounted volume"]
 
     RQ -->|"OpenAPI / orval"| API
     API --> STORE
@@ -97,8 +97,8 @@ rehearsal/
 ├── docker-compose.yml          # added at the end — see §10
 ├── .env.example
 ├── courses/                    # mounted as a volume
-│   ├── refund.md
-│   └── raise.md
+│   ├── refund.yaml
+│   └── raise.yaml
 ├── apps/
 │   ├── web/                    # React + Vite + Tailwind
 │   ├── control-plane/          # NestJS
@@ -107,7 +107,7 @@ rehearsal/
 │   └── contracts/              # the only thing all three import
 │       ├── openapi.yaml        # hand-written, the source of truth
 │       ├── schema/             # JSON Schema: Course, realtime events
-│       ├── src/parse/          # parseCourse() — Markdown → Course
+│       ├── src/load.ts         # loadCourse() — YAML → Course
 │       ├── src/zod/            # runtime validators
 │       └── src/generated/      # orval output — committed, never hand-edited
 └── docs/
@@ -152,7 +152,7 @@ process memory.
 |---|---|
 | `AuthModule` | Issue/verify JWT, resolve `userId` |
 | `ProfileModule` | Level, Chinese toggle, Suggestions toggle |
-| `CourseModule` | Serve parsed courses; reject invalid ones at load |
+| `CourseModule` | Serve courses; reject invalid ones at load |
 | `SessionModule` | Mint LiveKit tokens, register sessions, produce debriefs |
 | `MemoryModule` | Recall patterns in, record patterns out |
 | `StorageModule` | The only code that knows SQLite or Redis exist |
@@ -200,24 +200,24 @@ it — a slow coach degrades feedback, not the conversation.
 ### 4.4 `courses/`
 
 Course content is **documents, not code** (`CODE_INSTRUCTION.md` §Courses), and
-the document format is **Markdown with YAML front-matter and a fixed set of
-sections**. They live in `courses/`, which `docker-compose` mounts as a volume,
-so content can change without rebuilding an image.
+the document format is **YAML**. They live in `courses/`, which `docker-compose`
+mounts as a volume, so content can change without rebuilding an image.
 
-Markdown rather than JSON because most of a course *is* prose: the character and
-coach prompts are multi-paragraph instructions, which in JSON become escaped
-`\n` soup nobody can review or diff. Structured fields — id, levels, budget,
-avatar — go in front-matter, where they stay readable.
+A course is almost entirely structure — a level list, a budget, an avatar, three
+stakes fields, a counterpart, a hint list. Only the two prompts are prose, and
+YAML block scalars (`|`) hold those, so they stay readable and diffable. The file
+is data end to end, so no parsing layer has to recover structure that is already
+there.
 
-**The section list is closed, and that is the anti-trajectory guarantee.** The
-parser accepts exactly these `##` sections, in this order, all required:
+**The schema is closed, and that is the anti-trajectory guarantee.** `Course` is
+a `strictObject` at every level, so an unknown key is an error rather than an
+ignored line. There is no `expectedResponses`, no `turns`, no `successScript` — a
+course cannot express a trajectory because there is nowhere to put one. `Goal` is
+a win *condition* the learner sees, not a path we walk them down.
 
-`Stakes` · `Goal` · `Counterpart` · `Opener` · `Coach hints` · `Prompts`
-
-There is no `Expected responses`, no `Turns`, no `Success script`. A course
-cannot express a trajectory because the format has nowhere to put one — and
-unlike a schema rule, an author can read the list and see it. `Goal` is a win
-*condition* the learner sees, not a path we walk them down.
+Each file opens with a `yaml-language-server` hint pointing at
+`schema/course.schema.json`, so an author's editor reports the same rejection the
+loader would, while they type.
 
 **`levels` orders, it does not hide.** Every course is offered to every learner;
 `levels` only sorts the picker and drives the suitability badge. Hiding a course
@@ -450,8 +450,14 @@ runtime. Three enforcement points, so a contract can't quietly rot:
 | Layer | Artifact | Checked |
 |---|---|---|
 | HTTP | `packages/contracts/openapi.yaml` | orval at build; zod in the NestJS pipe |
-| Course docs | `courses/*.md` → parsed `Course` | `pnpm check:courses` (offline) **and** zod at load |
+| Course docs | `courses/*.yaml` → `Course` | `pnpm check:courses` (offline) **and** zod at load |
 | Realtime | `packages/contracts/schema/events/*.json` | zod on both ends of the data channel |
+
+`schema/` is **generated from the zod schemas**, not written alongside them, so
+the JSON Schema and the runtime validator cannot disagree. `pnpm check:schema`
+fails on drift, which is what makes "generated" a guarantee rather than a
+convention. `openapi.yaml` `$ref`s those files instead of restating them, so the
+spec is a third view of one shape rather than a third copy of it.
 
 ### 6.2 HTTP surface (OpenAPI)
 
@@ -476,7 +482,7 @@ Validated with zod on both ends; the schemas are shared from
 
 | Event | Direction | Payload |
 |---|---|---|
-| `agent.state` | worker → web | `{ state: State }` — only the three visible states cross the wire |
+| `agent.state` | worker → web | `{ state: State }` — the worker emits the three live values; `idle` and `ended` are the browser's own |
 | `transcript.final` | worker → web | `{ role: "learner" \| "character", text, tStart, tEnd }` |
 | `coach.card` | worker → web | `{ kind, category, quote, better?, en, zh }` |
 | `suggestions` | worker → web | `{ prompt, options: string[] }` |
@@ -489,59 +495,65 @@ accident.
 
 ### 6.4 Course document
 
-A course is Markdown. Front-matter carries the structured fields; the body
-carries the prose, under the fixed section list from §4.4.
+A course is a YAML document. Every key maps to a field of `Course`; the two
+prompts use block scalars so multi-paragraph prose stays readable.
 
-```markdown
----
+```yaml
+# yaml-language-server: $schema=../packages/contracts/schema/course.schema.json
 id: refund
 version: 1
 title: Returning a faulty item
-levels: [A2, B1, B2]
-budget: { learnerTurns: 12 }    # soft ceiling, max 20 — see §5.7, §11
+levels: [B1]                 # orders and badges only — see §4.4
+accent: violet               # a palette name, never a hex — see below
+budget:
+  learnerTurns: 12           # soft ceiling, max 20 — see §5.7, §11
 avatar:
-  accent: "#7C5CFF"    # quoted — a bare # starts a YAML comment
   style: bob
+  mood: stern
+  hair: "#3D3659"            # quoted — a bare # starts a YAML comment
   skin: "#FFD3B0"
----
-
-## Stakes
-A busy electronics store, Saturday afternoon. Dana has been on shift since 8am.
-
-## Goal
-Get a refund without escalating.
-
-## Counterpart
-- **name:** Dana
-- **role:** store clerk
-- **goal:** Follow policy. Be polite, but do not concede easily.
-
-## Opener
-Hi there — how can I help you today?
-
-## Coach hints
-- articles
-- past-tense narration
-
-## Prompts
-### Character
-You are Dana, a store clerk. Stay in character. Never correct the learner...
-
-### Coach
-Watch for article errors and tense shifts. Return findings as JSON...
+stakes:
+  you: a customer with a broken item and no receipt
+  setting: A busy electronics store, Saturday afternoon
+  edge: would rather you went away
+goal: Get a refund without escalating.
+counterpart:
+  name: Dana
+  role: store clerk
+  goal: Follow policy. Be polite, but do not concede easily.
+opener: Hi there — how can I help you today?
+coachHints:
+  - articles
+  - past-tense narration
+prompts:
+  character: |
+    You are Dana, a store clerk. Stay in character. Never correct the learner...
+  coach: |
+    Watch for article errors and tense shifts. Return findings as JSON...
 ```
 
-**The parsed object is the contract, not the file.** There is one JSON Schema,
-and it validates the `Course` that `parseCourse()` produces — which keeps
-`CODE_INSTRUCTION.md`'s runtime-plus-offline requirement intact without asking a
-JSON Schema to understand Markdown. `parseCourse(md: string): Course` lives in
-`packages/contracts`, so `control-plane` and `agent-worker` parse identically and
-cannot drift. `pnpm check:courses` runs the same parser and the same schema over
-every file in `courses/`.
+A missing key, an unknown key, or malformed YAML is an error naming the file
+(§8), because the closed schema is what makes "do not fix the trajectory"
+checkable rather than aspirational.
 
-`coachHints` and `prompts` are **hints, not a script**. `avatar` and `title` are
-presentation fields the `web` module reads; the `agent-worker` reads `prompts`,
-`coachHints` and `opener`.
+**`accent` is a palette name, not a colour.** `UI.md` §3 fixes the six hues and
+their ink tones, and §6 records the contrast rule those pairs satisfy. Letting a
+course file write a hex would let a content edit break an accessibility
+guarantee that was verified once and is now nobody's job to re-verify. The
+tokens themselves live in `web`; a course picks a name from a closed enum.
+
+**The object is the contract, not the file.** There is one JSON Schema, generated
+from the zod `Course` schema, and `openapi.yaml` `$ref`s it — so the format needs
+no second description of itself, and no JSON Schema ever has to understand YAML.
+`loadCourse(text: string, source?: string): Course` lives in
+`packages/contracts`: `yaml` parses, zod validates, and the error names the file.
+`control-plane` and `agent-worker` load identically and cannot drift, and
+`pnpm check:courses` runs the same function over every file in `courses/`.
+
+`coachHints` and `prompts` are **hints, not a script**. `agent-worker` reads
+`prompts`, `coachHints` and `opener`; `web` reads `title`, `levels`, `accent`,
+`avatar`, `stakes`, `goal` and `counterpart`, which is exactly what `CourseCard`
+carries (§6.2).
 
 ---
 
@@ -578,7 +590,7 @@ Every row ends in a next action. No path leaves the learner stuck.
 | Coach LLM fails | The scene is unaffected; fewer cards |
 | Network drops mid-scene | Debrief still produced from what's in Redis |
 | Memory write fails | Session unaffected; the callback simply doesn't fire next time |
-| Course document invalid | Rejected at load, naming the file and the missing heading or front-matter key; the picker omits it |
+| Course document invalid | Rejected at load, naming the file and the offending key or path; the picker omits it |
 
 ---
 
@@ -639,7 +651,7 @@ about, so they are recorded rather than left implicit.
 | Transcripts persisted? | **No** — findings and the debrief only | `corrections[]` already keeps every sentence that mattered; the rest is the most sensitive data we hold and we never read it again |
 | Source of `won` | The character's `goalMet` flag | The scene asks "did you get the refund", not "was your English clean" — see §5.6 |
 | Coach positive rate | Drives `worked[]`, `headline` and `next` | Encouragement and routing. Never a verdict, never a number on screen — see §5.4 |
-| `budget.learnerTurns` | Clamped, `maximum: 20` | §5.7 is a product guarantee; content that can set 200 can silently break it |
+| `budget.learnerTurns` | Rejected above 20, `maximum: 20` | §5.7 is a product guarantee; content that can set 200 can silently break it. Rejected rather than clamped, because silently rewriting 200 to 20 leaves the author believing a number that is not in effect |
 | Course `levels` | Ordering and badging only — never hide | Hiding risks a dead end, and a one-tap level answer is a worse estimate than the learner's own |
 | Auth | One hardcoded dev user behind the JWT interface | Memory across sessions needs a stable id; real login adds nothing in two hours |
 | Pronunciation scoring | Out of scope | Buildable, but the two-hour budget doesn't cover it — upgrade paths in §1 |

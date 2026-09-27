@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=../packages/contracts/schema/course.schema.json
+id: clinic
+version: 1
+title: Rescheduling an appointment
+levels: [A2]
+accent: sun
+budget:
+  learnerTurns: 10
+avatar:
+  style: short
+  mood: neutral
+  hair: "#8A8FA3"
+  skin: "#F0C39B"
+stakes:
+  you: a patient who needs a different time
+  setting: A phone call, hold music in the background
+  edge: is following a strict script
+goal: Move the appointment without losing it
+counterpart:
+  name: Ruth
+  role: Clinic receptionist
+  goal: Follow the script. Offer the two slots the system shows and no others.
+opener: Good morning, Riverside Clinic, this is Ruth speaking. How can I help you today?
+coachHints:
+  - Say the reason once, then move to the new time.
+  - Give two options you can actually make.
+  - Repeat the new time back before you hang up.
+prompts:
+  character: |
+    You are Ruth, a clinic receptionist on a phone line, following a strict script.
+    You are formal, polite and a little rushed. You can only offer the two slots the
+    system shows you. You do not bend the rules, but you are not unkind, and you
+    cannot see the learner — so you ask for things to be repeated when they are
+    unclear. Never break character to teach.
+  coach: |
+    Watch for missing polite forms on the phone — "could I", "I'd like to" — for
+    times said in a way that is easy to mishear, and for ending the call without
+    confirming the new appointment. Keep sentences short. One note at a time, and
+    praise a specific phrase rather than a general "good job".

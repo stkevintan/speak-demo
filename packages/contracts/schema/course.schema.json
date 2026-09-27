@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "version": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "levels": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "A2",
+          "B1",
+          "B2"
+        ]
+      }
+    },
+    "accent": {
+      "type": "string",
+      "enum": [
+        "coral",
+        "violet",
+        "teal",
+        "sun",
+        "sky",
+        "pink"
+      ]
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "learnerTurns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        }
+      },
+      "required": [
+        "learnerTurns"
+      ],
+      "additionalProperties": false
+    },
+    "avatar": {
+      "type": "object",
+      "properties": {
+        "style": {
+          "type": "string",
+          "enum": [
+            "bob",
+            "short",
+            "bun",
+            "cap",
+            "glasses",
+            "long"
+          ]
+        },
+        "mood": {
+          "type": "string",
+          "enum": [
+            "stern",
+            "neutral",
+            "warm"
+          ]
+        },
+        "hair": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "skin": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        }
+      },
+      "required": [
+        "style",
+        "mood",
+        "hair",
+        "skin"
+      ],
+      "additionalProperties": false
+    },
+    "stakes": {
+      "type": "object",
+      "properties": {
+        "you": {
+          "type": "string",
+          "minLength": 1
+        },
+        "setting": {
+          "type": "string",
+          "minLength": 1
+        },
+        "edge": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "you",
+        "setting",
+        "edge"
+      ],
+      "additionalProperties": false
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 1
+    },
+    "counterpart": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "goal": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "name",
+        "role",
+        "goal"
+      ],
+      "additionalProperties": false
+    },
+    "opener": {
+      "type": "string",
+      "minLength": 1
+    },
+    "coachHints": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "prompts": {
+      "type": "object",
+      "properties": {
+        "character": {
+          "type": "string",
+          "minLength": 1
+        },
+        "coach": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "character",
+        "coach"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "id",
+    "version",
+    "title",
+    "levels",
+    "accent",
+    "avatar",
+    "stakes",
+    "goal",
+    "counterpart",
+    "opener",
+    "coachHints",
+    "prompts"
+  ],
+  "additionalProperties": false
+}
