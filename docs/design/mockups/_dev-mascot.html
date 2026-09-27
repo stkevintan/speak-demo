@@ -1,0 +1,18 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css"></head>
+<body><div class="screen" style="padding:40px">
+<h1 class="title">Pip states</h1>
+<div id="row" style="display:flex;gap:30px;align-items:flex-end;margin-top:40px"></div>
+<h1 class="title" style="margin-top:50px">Scene characters</h1>
+<div id="row2" style="display:flex;gap:24px;margin-top:24px"></div>
+<script src="_mascot.js"></script>
+<script>
+document.getElementById('row').innerHTML = ['idle','listen','think','write','cheer'].map(m=>`<div style="text-align:center">${pipSvg(140,m)}<div style="font-weight:800;margin-top:8px">${m}</div></div>`).join('');
+document.getElementById('row2').innerHTML = [
+ {style:'bob',accent:'#7C5CFF',hair:'#3D3659',mood:'stern',skin:'#FFD3B0'},
+ {style:'cap',accent:'#FF6B4A',hair:'#2B2440',mood:'warm',skin:'#E8B48C'},
+ {style:'glasses',accent:'#12C8A0',hair:'#5A3B2E',mood:'neutral',skin:'#FFD3B0'},
+ {style:'bun',accent:'#FF7AC6',hair:'#1B1633',mood:'warm',skin:'#C98A63'},
+ {style:'long',accent:'#3DBDFF',hair:'#B5651D',mood:'neutral',skin:'#FFE0C4'},
+ {style:'short',accent:'#FFC93C',hair:'#8A8FA3',mood:'warm',skin:'#F0C39B'},
+].map(a=>avatarSvg({size:100,...a})).join('');
+</script></body></html>

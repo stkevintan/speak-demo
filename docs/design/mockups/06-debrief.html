@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>06 Debrief</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_app.css">
+<style>
+  .shell{padding:0 44px 24px;height:790px;display:flex;flex-direction:column;gap:16px}
+  .row{display:flex;gap:16px}
+  .row.tight{flex:1;min-height:0}
+
+  .win-banner{flex:1;display:flex;align-items:center;gap:26px;padding:24px 30px}
+  .win-banner h2{margin:0;font-size:33px;font-weight:900;letter-spacing:-0.9px}
+  .win-banner p{margin:9px 0 0;font-size:15px;font-weight:650;line-height:1.5;
+                color:var(--ink-2);max-width:560px}
+  .win-banner .pip{flex:none;margin:-14px -6px -14px 0}
+
+  .next{width:452px;flex:none;background:#fff;border-radius:32px;box-shadow:var(--sh-md);
+        padding:22px 24px;display:flex;flex-direction:column}
+  .next .lbl{font-size:11.5px;font-weight:900;letter-spacing:0.9px;text-transform:uppercase;
+             color:var(--muted)}
+  .next .who{display:flex;align-items:center;gap:12px;margin-top:12px}
+  .next h3{margin:0;font-size:20px;font-weight:900;letter-spacing:-0.3px}
+  .next .why{font-size:13.5px;font-weight:650;color:var(--muted);line-height:1.5;margin:12px 0 0}
+  .next .go{margin-top:auto;display:flex;align-items:center;justify-content:center;gap:9px;
+            background:linear-gradient(135deg,var(--coral),#ff9166);color:var(--ink);
+            border-radius:var(--r-pill);padding:15px;font-size:16px;font-weight:900;
+            box-shadow:0 12px 26px rgba(255,107,74,0.34)}
+
+  .panel{flex:1}
+  .fix-row .pair{font-size:14.5px;font-weight:700;line-height:1.45}
+  .fix-row .pair .bad{color:var(--coral-ink);text-decoration:line-through;
+                      text-decoration-color:rgba(209,68,31,0.45);
+                      text-decoration-thickness:2px;font-weight:700}
+  .fix-row .pair .good{color:var(--teal-ink);font-weight:850}
+  .fix-row .pair .arw{color:var(--muted);margin:0 6px;font-weight:800}
+  .fix-row .zh{font-size:12.5px;font-weight:700;color:var(--violet-ink);margin-top:4px}
+  .panel .sub{font-size:12.5px;font-weight:700;color:var(--muted);margin:-8px 0 12px}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="blob" data-bleed style="width:560px;height:560px;background:#D5F5EC;left:-200px;top:-190px"></div>
+  <div class="blob" data-bleed style="width:480px;height:480px;background:#FFE0D4;right:-170px;bottom:-180px"></div>
+
+  <div class="topbar">
+    <div class="brand"><span style="display:flex" id="brandPip"></span> Rehearsal</div>
+    <span class="pill" style="background:#fff;box-shadow:var(--sh-sm);color:var(--ink-2)">
+      Debrief · Returning a faulty item</span>
+    <div class="grow"></div>
+    <span class="pill" style="background:var(--sky-soft);color:var(--sky-ink)" id="when"></span>
+    <div class="icon-btn" id="close"></div>
+  </div>
+
+  <div class="shell">
+    <div class="row">
+      <div class="win-banner">
+        <div style="flex:1">
+          <h2>You got the refund.</h2>
+          <p>Dana offered a replacement and store credit — and you never once got
+             defensive to get there. You asked twice, held your ground, and stayed warm.</p>
+          <div class="stat-row">
+            <span class="stat-pill" id="s1"></span>
+            <span class="stat-pill" id="s2"></span>
+            <span class="stat-pill" id="s3"></span>
+            <span class="stat-pill" id="s4"></span>
+          </div>
+        </div>
+        <div class="pip" data-bleed id="cheer"></div>
+      </div>
+
+      <div class="next">
+        <div class="lbl">Do this next</div>
+        <div class="who" id="nextWho"></div>
+        <p class="why">Past tense slipped three times today. Marcus is a good place to
+          practise it — he'll interrupt you, so you have to think and talk at the same time.</p>
+        <div class="go" id="go"></div>
+      </div>
+    </div>
+
+    <div class="row tight">
+      <div class="panel">
+        <h4 id="hWorked"></h4>
+        <div class="kv"><span class="ic" id="i1"></span><span>
+          <b>You led with the problem, not the complaint.</b> One sentence told Dana
+          what broke, when, and what you wanted.</span></div>
+        <div class="kv"><span class="ic" id="i2"></span><span>
+          <b>You interrupted once — and it landed.</b> "Sorry, can I stop you there?"
+          cut off the store-policy speech without sounding rude. That's the hardest
+          move in a second language.</span></div>
+        <div class="kv"><span class="ic" id="i3"></span><span>
+          <b>You stayed polite under a no.</b> "I understand, but…" kept the door open
+          instead of turning it into an argument.</span></div>
+      </div>
+
+      <div class="panel">
+        <h4 id="hWatch"></h4>
+        <p class="sub">Three slips in six minutes — so it's a habit, not a one-off.</p>
+        <div class="kv"><span class="ic" id="w1"></span><span>
+          <b>Irregular past tense.</b> buyed → bought, taked → took, "I have went" →
+          "I went". These never take <b>-ed</b>.</span></div>
+        <div class="kv"><span class="ic" id="w2"></span><span>
+          <b>Singular vs plural.</b> "this headphones" → "these headphones".
+          Corrected once today, so it's not a pattern yet.</span></div>
+        <div class="kv"><span class="ic" id="w3"></span><span>
+          <b>Warm-up time.</b> Your first two turns were short. You warmed up by
+          minute two — worth remembering next time you feel stiff.</span></div>
+      </div>
+    </div>
+
+    <div class="panel" style="flex:none">
+      <h4 id="hFix"></h4>
+      <div id="fixes"></div>
+    </div>
+  </div>
+</div>
+
+<script src="_mascot.js"></script>
+<script src="_icons.js"></script>
+<script src="_scenes.js"></script>
+<script src="_check.js"></script>
+<script>
+  const next = SCENES.find(s => s.id === 'raise');
+
+  document.getElementById('brandPip').innerHTML = pipSvg(34, 'idle');
+  document.getElementById('cheer').innerHTML = pipSvg(132, 'cheer');
+  document.getElementById('close').innerHTML = icon('arrowRight', 20, '#3D3659', 2.2);
+  document.getElementById('when').innerHTML =
+    icon('clock', 15, '#1A6A99', 2.2) + ' just now';
+  document.getElementById('when').style.cssText += 'display:flex;align-items:center;gap:7px';
+
+  document.getElementById('s1').textContent = '6 turns';
+  document.getElementById('s2').textContent = '4 min 12 s';
+  document.getElementById('s3').textContent = '1 interruption, held';
+  document.getElementById('s4').textContent = '2 upgrades';
+
+  document.getElementById('nextWho').innerHTML =
+    avatarSvg({ size: 54, accent: next.accent, ...next.avatar }) +
+    `<div><h3>${next.title}</h3>
+      <div style="font-size:12.5px;font-weight:700;color:var(--muted);margin-top:2px">
+        ${next.them} · ${next.role} · ${next.level}</div></div>`;
+  document.getElementById('go').innerHTML =
+    'Start this scene ' + icon('arrowRight', 18, '#fff', 2.6);
+
+  document.getElementById('hWorked').innerHTML =
+    icon('heart', 17, '#08735A', 2.4) + ' What worked';
+  document.getElementById('hWatch').innerHTML =
+    icon('warn', 17, '#8A6013', 2.4) + ' What to watch';
+  document.getElementById('hFix').innerHTML =
+    icon('sparkle', 17, '#5B3FD6', 2.4) + ' Your sentences, corrected';
+  ['i1','i2','i3'].forEach((id,i) =>
+    document.getElementById(id).innerHTML = icon('check', 16, '#08735A', 2.6));
+  ['w1','w2','w3'].forEach(id =>
+    document.getElementById(id).innerHTML = icon('warn', 16, '#8A6013', 2.4));
+
+  const FIXES = [
+    ['I buyed this headset last week.', 'I bought this headset last week.',
+     '中文：buy 的过去式是 bought。'],
+    ['I have went to the shop yesterday.', 'I went to the shop yesterday.',
+     '中文：有明确过去时间就用过去式，不用完成时。'],
+    ['He taked my name and my number.', 'He took my name and my number.',
+     '中文：take 的过去式是 took。'],
+    ['I want that you give me a new one.', 'I\u2019d like you to give me a new one.',
+     '中文：英文不说 want that…，用 would like you to… 更自然。'],
+  ];
+
+  document.getElementById('fixes').innerHTML = FIXES.map((f, i) => `
+    <div class="fix-row">
+      <span class="n">${i + 1}</span>
+      <div>
+        <div class="pair"><span class="bad">${f[0]}</span>
+          <span class="arw">→</span><span class="good">${f[1]}</span></div>
+        <div class="zh">${f[2]}</div>
+      </div>
+    </div>`).join('');
+</script>
+</body>
+</html>

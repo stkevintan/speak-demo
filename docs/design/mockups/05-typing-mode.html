@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>05 Type instead of talk</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_app.css">
+<style>
+  .shell{padding:0 44px 24px;height:790px;display:flex;flex-direction:column;gap:16px}
+  .live{display:flex;gap:22px;flex:1;min-height:0}
+  .col-main{flex:1;display:flex;flex-direction:column;gap:16px;min-width:0}
+
+  .stage{padding:26px 30px;display:flex;flex-direction:column;flex:1;min-height:0}
+  .live-head{display:flex;align-items:center;gap:22px;padding-bottom:20px;
+             border-bottom:2px solid var(--line);position:relative;z-index:1}
+  .live-who{flex:1;min-width:0}
+  .live-name{display:flex;align-items:center;gap:10px}
+  .live-name b{font-size:24px;font-weight:900;letter-spacing:-0.5px}
+  .live-sub{font-size:13.5px;font-weight:700;color:var(--muted);margin-top:3px}
+  .live-wave{color:var(--violet);width:180px;flex:none}
+
+  .lines{flex:1;display:flex;flex-direction:column;gap:12px;justify-content:flex-end;
+         padding-top:18px;position:relative;z-index:1;min-height:0}
+  .bubble{max-width:72%}
+  .bubble.me.typed{background:linear-gradient(135deg,#fff,#f7f4ff);
+                   color:var(--ink);border:2px solid var(--violet-soft);
+                   border-bottom-right-radius:8px}
+  .bubble.me.typed .who{color:var(--violet-ink)}
+  .who .kbd{vertical-align:-2px;margin-right:4px}
+
+  .typefoot{font-size:12.5px;font-weight:800;color:var(--muted);text-align:center;margin-top:2px}
+  .typefoot b{color:var(--ink-2)}
+
+  .rail{width:400px;flex:none}
+  .fb{padding:15px 17px}
+  .fb-said,.fb-fix{font-size:15px}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="blob" data-bleed style="width:520px;height:520px;background:#E4DBFF;left:-190px;bottom:-200px"></div>
+  <div class="blob" data-bleed style="width:440px;height:440px;background:#FFF0CC;right:-160px;top:-170px"></div>
+
+  <div class="topbar">
+    <div class="brand"><span style="display:flex" id="brandPip"></span> Rehearsal</div>
+    <span class="pill" style="background:#F1ECFF;color:#5B3FD6">Returning a faulty item</span>
+    <div class="grow"></div>
+    <span class="pill" style="background:var(--sun-soft);color:var(--sun-ink)" id="mode"></span>
+    <div class="icon-btn" id="settings"></div>
+  </div>
+
+  <div class="shell">
+    <div class="alert">
+      <div class="ic" id="alertIc"></div>
+      <div style="flex:1">
+        <b>We can't hear you.</b>
+        <p>Your mic isn't picking anything up — it might be muted, or another app is using it.
+           You can fix it now, or just type. The scene keeps going either way.</p>
+      </div>
+      <button class="btn btn-primary" style="padding:14px 24px;font-size:15px" id="fix">Fix my mic</button>
+      <button class="btn btn-ghost" style="padding:14px 22px;font-size:15px">Keep typing</button>
+    </div>
+
+    <div class="live">
+      <div class="col-main">
+        <section class="stage">
+          <div class="stage-glow" style="background:#C9B8FF"></div>
+
+          <div class="live-head">
+            <div class="speaker-ring" id="ring"></div>
+            <div class="live-who">
+              <div class="live-name"><b id="name"></b></div>
+              <div class="live-sub" id="sub"></div>
+              <div class="state-chip state-listen">
+                <span class="dot" style="background:#0a8c6e"></span> Waiting for you — typing is on
+              </div>
+            </div>
+            <div class="wave live-wave" id="wave"></div>
+          </div>
+
+          <div class="lines">
+            <div class="bubble them"><span class="who">Dana</span>
+              Right. Do you have the receipt with you?</div>
+            <div class="bubble me typed"><span class="who"><span class="kbd" id="kbd1"></span>You · typed</span>
+              No, sorry — I lost it. But I still have the box, and the card I paid with.</div>
+            <div class="bubble them"><span class="who">Dana</span>
+              Okay. Give me a second, I'll see what I can do.</div>
+          </div>
+        </section>
+
+        <div class="typebar">
+          <div class="field">Thanks. It was a gift, so I'd rather not—<span class="caret"></span></div>
+          <div class="send" id="send"></div>
+        </div>
+        <div class="typefoot">
+          <b>Enter</b> to send · <b>Shift + Enter</b> for a new line · switch back to voice whenever you like
+        </div>
+      </div>
+
+      <aside class="rail">
+        <div class="rail-head">
+          <span style="display:flex" id="coachPip"></span>
+          <div>
+            <div class="rail-title">Coach</div>
+            <div class="rail-sub">Typing works exactly the same</div>
+          </div>
+        </div>
+        <div class="rail-body">
+          <div class="fb nice">
+            <div class="fb-head" id="h1"></div>
+            <div class="fb-said">"I still have the box, and the card I paid with."</div>
+            <div class="fb-why">You offered proof before she had to ask twice. That's the
+              move that gets a refund over the line.</div>
+          </div>
+          <div class="fb tip">
+            <div class="fb-head" id="h3"></div>
+            <div class="fb-said" style="font-weight:600;font-size:14.5px">
+              Longer sentences are easier to get right when you type. Try
+              <b>"It was a gift, so I'd rather not lose the money"</b> — one clause,
+              one clear ask.</div>
+            <div class="fb-zh">中文：打字时可以写更长的句子，先说明「是礼物」，再提出诉求，更容易一次说清。</div>
+          </div>
+          <div class="fb" style="border-left-color:var(--line);background:#faf8fd">
+            <div class="fb-head" style="color:var(--muted)" id="h4"></div>
+            <div class="fb-why" style="margin-top:6px">
+              Nothing is lost. If you'd rather speak, tap <b>Fix my mic</b> — the
+              conversation carries on from here.</div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<script src="_mascot.js"></script>
+<script src="_icons.js"></script>
+<script src="_scenes.js"></script>
+<script src="_check.js"></script>
+<script>
+  const scene = SCENES.find(s => s.id === 'refund');
+  const bars = [10,18,28,20,36,24,14,30,40,22,12,26,34,18,10,24];
+
+  document.getElementById('brandPip').innerHTML = pipSvg(34, 'idle');
+  document.getElementById('coachPip').innerHTML = pipSvg(50, 'write');
+  document.getElementById('settings').innerHTML = icon('settings', 20, '#3D3659', 2.2);
+  document.getElementById('mode').innerHTML =
+    icon('keyboard', 15, '#8A6013', 2.2) + ' Typing mode';
+  document.getElementById('mode').style.cssText +=
+    'display:flex;align-items:center;gap:7px';
+  document.getElementById('alertIc').innerHTML = icon('micOff', 26, '#fff', 2.3);
+  document.getElementById('fix').innerHTML = icon('mic', 17, '#fff', 2.4) + ' Fix my mic';
+  document.getElementById('fix').style.cssText +=
+    'display:flex;align-items:center;gap:9px';
+
+  document.getElementById('ring').innerHTML =
+    avatarSvg({ size: 96, accent: scene.accent, ...scene.avatar });
+  document.getElementById('name').textContent = scene.them;
+  document.getElementById('sub').textContent = scene.role + ' · ' + scene.level;
+  document.getElementById('wave').innerHTML =
+    bars.map(v => `<i style="height:${v}px;background:#7C5CFF"></i>`).join('');
+  document.getElementById('kbd1').innerHTML = icon('keyboard', 13, '#7C5CFF', 2.4);
+  document.getElementById('send').innerHTML = icon('arrowRight', 22, '#fff', 2.6);
+
+  document.getElementById('h1').innerHTML = icon('heart', 15, '#08735A', 2.4) + ' Nice';
+  document.getElementById('h3').innerHTML = icon('sparkle', 15, '#5B3FD6', 2.4) + ' Try next';
+  document.getElementById('h4').innerHTML = icon('refresh', 15, '#66617C', 2.4) + ' Nothing lost';
+</script>
+</body>
+</html>

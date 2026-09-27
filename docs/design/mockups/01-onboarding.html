@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>01 Onboarding</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_app.css">
+<style>
+  .wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+  .onb{width:980px;background:#fff;border-radius:48px;box-shadow:var(--sh-lg);
+       padding:70px 60px 44px;text-align:center;position:relative}
+  .onb .pip{position:absolute;top:-78px;left:50%;transform:translateX(-50%)}
+  .onb h1{margin:20px 0 0;font-size:46px;font-weight:900;letter-spacing:-1.2px}
+  .onb .lead{font-size:16.5px;font-weight:600;color:var(--muted);margin:10px 0 0}
+  .foot{font-size:13px;font-weight:700;color:var(--muted);margin:22px 0 0}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="blob" data-bleed style="width:520px;height:520px;background:#FFD9CC;left:-140px;top:-120px"></div>
+  <div class="blob" data-bleed style="width:460px;height:460px;background:#DCD2FF;right:-120px;bottom:-140px"></div>
+
+  <div class="wrap">
+    <div class="onb">
+      <div class="pip" data-bleed id="pip"></div>
+
+      <span class="pill" style="background:var(--teal-soft);color:var(--teal-ink)">
+        One question · takes 10 seconds
+      </span>
+
+      <h1>What's your English level?</h1>
+      <p class="lead">Just this once — it tunes how simply the tutor speaks to you.</p>
+
+      <div class="level-row" id="levels"></div>
+
+      <button class="btn btn-primary" style="margin-top:34px;width:100%;padding:20px;font-size:18px">
+        Continue
+      </button>
+      <p class="foot">Change it any time in settings · Nothing else to set up</p>
+    </div>
+  </div>
+</div>
+
+<script src="_mascot.js"></script>
+<script src="_icons.js"></script>
+<script src="_check.js"></script>
+<script>
+  document.getElementById('pip').innerHTML = pipSvg(150, 'cheer');
+
+  const LEVELS = [
+    { code:'A2', say:'I can get by.',      desc:'Short sentences. Please speak slowly.',        on:false },
+    { code:'B1', say:'I can hold a conversation.', desc:'I keep up in everyday situations — but I freeze when it matters.', on:true },
+    { code:'B2', say:'I\u2019m fairly fluent.',    desc:'I want to sound natural, not just correct.',   on:false },
+  ];
+
+  document.getElementById('levels').innerHTML = LEVELS.map(l => `
+    <div class="level-card ${l.on ? 'on' : ''}">
+      ${l.on ? `<div class="tick">${icon('check',17,'#fff',3)}</div>` : ''}
+      <div class="code">${l.code}</div>
+      <div class="say">${l.say}</div>
+      <div class="desc">${l.desc}</div>
+    </div>`).join('');
+</script>
+</body>
+</html>

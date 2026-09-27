@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>03 Live scene</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_app.css">
+<style>
+  .live{padding:0 44px 24px;display:flex;gap:22px;height:790px}
+  .col-main{flex:1;display:flex;flex-direction:column;gap:18px;min-width:0}
+
+  .stage{padding:26px 30px;display:flex;flex-direction:column;flex:1}
+  .live-head{display:flex;align-items:center;gap:22px;padding-bottom:22px;
+             border-bottom:2px solid var(--line);position:relative;z-index:1}
+  .speaker-ring{padding:8px}
+  .live-who{flex:1;min-width:0}
+  .live-name{display:flex;align-items:center;gap:10px}
+  .live-name b{font-size:25px;font-weight:900;letter-spacing:-0.5px}
+  .live-sub{font-size:13.5px;font-weight:700;color:var(--muted);margin-top:3px}
+  .live-wave{color:var(--violet);width:210px;flex:none}
+
+  .lines{flex:1;display:flex;flex-direction:column;gap:13px;justify-content:flex-end;
+         padding-top:22px;position:relative;z-index:1}
+  .bubble{max-width:74%}
+  .live-hint{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:800;
+             color:var(--muted);align-self:flex-start;margin-top:2px}
+  .live-hint .pulse{width:9px;height:9px;border-radius:50%;background:var(--teal)}
+
+  .rail{width:430px;flex:none}
+  .rail-body{gap:13px}
+  .fb{padding:15px 17px}
+  .fb-said,.fb-fix{font-size:15px}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="blob" data-bleed style="width:520px;height:520px;background:#E3DAFF;left:-180px;bottom:-200px"></div>
+  <div class="blob" data-bleed style="width:460px;height:460px;background:#FFDDD0;right:-160px;top:-160px"></div>
+
+  <div class="topbar">
+    <div class="brand"><span style="display:flex" id="brandPip"></span> Rehearsal</div>
+    <span class="pill" style="background:#F1ECFF;color:#5B3FD6">Returning a faulty item</span>
+    <div class="grow"></div>
+    <span class="pill" style="background:#fff;box-shadow:var(--sh-sm);color:var(--ink-2)" id="clock"></span>
+    <span class="pill" style="background:var(--violet-soft);color:#5B3FD6">B1</span>
+    <div class="icon-btn" id="settings"></div>
+  </div>
+
+  <div class="live">
+    <div class="col-main">
+      <section class="stage">
+        <div class="stage-glow" style="background:#C9B8FF"></div>
+
+        <div class="live-head">
+          <div class="speaker-ring" id="ring"></div>
+          <div class="live-who">
+            <div class="live-name"><b id="name"></b></div>
+            <div class="live-sub" id="sub"></div>
+            <div class="state-chip state-speak">
+              <span class="dot" style="background:#ff6b4a"></span> Dana is speaking
+            </div>
+          </div>
+          <div class="wave live-wave" id="wave"></div>
+        </div>
+
+        <div class="lines">
+          <div class="bubble them"><span class="who">Dana</span>
+            Hi there. How can I help you today?</div>
+          <div class="bubble me"><span class="who">You</span>
+            Hi. I buyed this headset last week and it stopped working.</div>
+          <div class="bubble them"><span class="who">Dana</span>
+            Right. Do you have the receipt with you?</div>
+          <div class="live-hint"><span class="pulse"></span> Your turn — tap the mic or hold Space</div>
+        </div>
+      </section>
+
+      <div class="ctrlbar">
+        <div class="ctrl" id="mic"></div>
+        <div class="ctrl" id="kb"></div>
+        <div class="switch-row" style="margin-left:12px">Suggestions
+          <span class="switch"></span></div>
+        <div style="margin-left:16px;font-size:13.5px;font-weight:800;color:var(--muted)">
+          <b style="color:var(--ink)">Listening</b> · nothing leaves this session
+        </div>
+        <div class="grow"></div>
+        <div class="ctrl end" id="end">End scene</div>
+      </div>
+    </div>
+
+    <aside class="rail">
+      <div class="rail-head">
+        <span style="display:flex" id="coachPip"></span>
+        <div>
+          <div class="rail-title">Coach</div>
+          <div class="rail-sub">Stays quiet while you talk</div>
+        </div>
+      </div>
+      <div class="rail-body">
+
+        <div class="fb nice">
+          <div class="fb-head" id="h1"></div>
+          <div class="fb-said">"…last week and it <b>stopped working</b>."</div>
+          <div class="fb-why">You named the problem and the timeframe in one go.
+            Dana now knows exactly what she's dealing with — that's the hard part done.</div>
+        </div>
+
+        <div class="fb warn">
+          <div class="fb-head" id="h2"></div>
+          <div class="fb-fix">
+            <span class="bad">I buyed</span> this headset → <span class="good">I bought</span> this headset
+          </div>
+          <div class="fb-why">buy → bought. It's irregular, so it never takes <b>-ed</b>.</div>
+          <div class="fb-zh">中文：buy 的过去式是 bought，不是 buyed。不规则动词不加 -ed。</div>
+        </div>
+
+        <div class="fb tip">
+          <div class="fb-head" id="h3"></div>
+          <div class="fb-said" style="font-weight:600;font-size:14.5px">
+            <b>"What are my options?"</b></div>
+          <div class="fb-said" style="font-weight:600;font-size:14.5px">
+            <b>"I'd rather not lose the money — is there anything you can do?"</b></div>
+          <div class="fb-why">Tap one to hear it, or say it your own way.</div>
+        </div>
+
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script src="_mascot.js"></script>
+<script src="_icons.js"></script>
+<script src="_scenes.js"></script>
+<script src="_check.js"></script>
+<script>
+  const scene = SCENES.find(s => s.id === 'refund');
+  const bars = [12,22,34,26,44,30,18,38,48,28,16,32,42,24,14,30,20,10];
+
+  const wave = (h, c) => bars.map(v =>
+    `<i style="height:${Math.round(v*h)}px;background:${c}"></i>`).join('');
+
+  document.getElementById('brandPip').innerHTML = pipSvg(34, 'idle');
+  document.getElementById('coachPip').innerHTML = pipSvg(52, 'write');
+  document.getElementById('settings').innerHTML = icon('settings', 20, '#3D3659', 2.2);
+  document.getElementById('clock').innerHTML = icon('clock', 15, '#66617C', 2.2) + ' 04:12';
+  document.getElementById('clock').style.display = 'flex';
+  document.getElementById('clock').style.alignItems = 'center';
+  document.getElementById('clock').style.gap = '7px';
+
+  document.getElementById('ring').innerHTML =
+    avatarSvg({ size: 104, accent: scene.accent, ...scene.avatar });
+  document.getElementById('name').textContent = scene.them;
+  document.getElementById('sub').textContent = scene.role + ' · ' + scene.level;
+  document.getElementById('wave').innerHTML = wave(1, '#7C5CFF');
+
+  document.getElementById('mic').innerHTML = icon('mic', 22, '#08735A', 2.3);
+  document.getElementById('mic').style.background = 'var(--teal-soft)';
+  document.getElementById('kb').innerHTML = icon('keyboard', 22, '#66617C', 2.2);
+  document.getElementById('end').innerHTML = icon('stop', 17, '#fff', 2.4) + '<span>End scene</span>';
+
+  document.getElementById('h1').innerHTML = icon('heart', 15, '#08735A', 2.4) + ' Nice';
+  document.getElementById('h2').innerHTML = icon('warn', 15, '#8A6013', 2.4) + ' Upgrade this';
+  document.getElementById('h3').innerHTML = icon('sparkle', 15, '#5B3FD6', 2.4) + ' Suggestion · after 4s of silence';
+</script>
+</body>
+</html>

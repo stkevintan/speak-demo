@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>07 Design system</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_app.css">
+<style>
+  /* Three equal rows must share one 900px frame, so every panel is sized to the
+     tallest of its row. Padding is deliberately tighter than the app screens. */
+  .grid{padding:0 44px 24px;height:826px;display:grid;
+        grid-template-columns:1fr 1fr;grid-template-rows:auto auto auto;
+        align-content:space-between;gap:14px}
+  .spec{background:#fff;border-radius:28px;box-shadow:var(--sh-md);padding:18px 20px;
+        overflow:hidden;display:flex;flex-direction:column}
+  .spec h4{margin:0 0 11px;font-size:14.5px;font-weight:900;letter-spacing:0.3px;
+           text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px}
+
+  .sw-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  .sw-row + .sw-row{margin-top:12px}
+  .sw{text-align:center}
+  .sw i{display:block;height:36px;border-radius:12px;box-shadow:var(--sh-sm);margin-bottom:6px}
+  .sw b{display:block;font-size:11px;font-weight:900;letter-spacing:-0.1px}
+  .sw span{display:block;font-size:9.5px;font-weight:700;color:var(--muted);margin-top:1px}
+  .sw i.aa{display:flex;align-items:center;justify-content:center;
+           font-size:15px;font-weight:900;letter-spacing:-0.3px}
+
+  .ty{display:flex;align-items:baseline;gap:14px;padding:3px 0}
+  .ty .tag{flex:none;width:92px;font-size:10.5px;font-weight:900;color:var(--muted);
+           letter-spacing:0.4px;text-transform:uppercase}
+
+  .moods{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;text-align:center}
+  .moods .m b{display:block;font-size:12px;font-weight:900;margin-top:2px}
+  .moods .m span{display:block;font-size:10px;font-weight:700;color:var(--muted)}
+
+  .cast{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;text-align:center}
+  .cast .c b{display:block;font-size:11.5px;font-weight:900;margin-top:4px}
+  .cast .c span{display:block;font-size:9.5px;font-weight:700;color:var(--muted)}
+
+  .ctl-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .ctl-row + .ctl-row{margin-top:14px}
+  .fb-mini{padding:13px 15px}
+  .fb-mini .fb-said{font-size:13.5px;margin-top:7px}
+  .fb-mini .fb-why{font-size:12.5px;margin-top:6px}
+  .fb-mini .fb-zh{font-size:12px;margin-top:6px;padding-top:6px}
+  .fb-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="blob" data-bleed style="width:560px;height:560px;background:#E4DBFF;left:-200px;top:-200px"></div>
+  <div class="blob" data-bleed style="width:500px;height:500px;background:#FFE0D4;right:-180px;bottom:-200px"></div>
+
+  <div class="topbar">
+    <div class="brand"><span style="display:flex" id="brandPip"></span> Rehearsal</div>
+    <span class="pill" style="background:#fff;box-shadow:var(--sh-sm);color:var(--ink-2)">
+      Design system · the parts every screen is built from</span>
+    <div class="grow"></div>
+    <div class="icon-btn" id="settings"></div>
+  </div>
+
+  <div class="grid">
+    <section class="spec">
+      <h4>Colour</h4>
+      <div class="sw-row" id="brandSw"></div>
+      <div class="sw-row" id="neutSw"></div>
+      <p style="margin:12px 0 7px;font-size:11.5px;font-weight:800;color:var(--ink-2)">
+        Bright tones are fills — text on them is ink. When a hue must be text,
+        use its ink hex. *Violet is the exception: the bright tone clears AA
+        neither way, so it is darkened and carries white text.</p>
+      <div class="sw-row" id="inkSw"></div>
+    </section>
+
+    <section class="spec">
+      <h4>Type scale</h4>
+      <div class="ty"><span class="tag">Display 42</span>
+        <span style="font-size:42px;font-weight:900;letter-spacing:-1.2px">You got it.</span></div>
+      <div class="ty"><span class="tag">Heading 30</span>
+        <span style="font-size:30px;font-weight:900;letter-spacing:-0.8px">Pick a scene</span></div>
+      <div class="ty"><span class="tag">Subhead 19</span>
+        <span style="font-size:19px;font-weight:900">Asking for a raise</span></div>
+      <div class="ty"><span class="tag">Body 15.5</span>
+        <span style="font-size:15.5px;font-weight:650;color:var(--ink-2)">
+          Dana now knows exactly what she's dealing with.</span></div>
+      <div class="ty"><span class="tag">Caption 12.5</span>
+        <span style="font-size:12.5px;font-weight:900;letter-spacing:0.5px;
+                     text-transform:uppercase;color:var(--muted)">
+          Stays quiet while you talk</span></div>
+    </section>
+
+    <section class="spec">
+      <h4>Pip — one expression per voice state</h4>
+      <div class="moods" id="moods"></div>
+    </section>
+
+    <section class="spec">
+      <h4>The cast</h4>
+      <div class="cast" id="cast"></div>
+    </section>
+
+    <section class="spec">
+      <h4>Buttons &amp; controls</h4>
+      <div class="ctl-row">
+        <button class="btn btn-primary" style="font-size:15px">Start scene</button>
+        <button class="btn btn-ghost" style="font-size:15px">Keep typing</button>
+        <span class="pill" style="background:var(--violet-soft);color:#5B3FD6">Level B1</span>
+        <span class="pill" style="background:var(--teal-soft);color:var(--teal-ink)">Listening</span>
+        <span class="switch-row" style="margin-left:auto">Chinese hints <span class="switch"></span></span>
+      </div>
+      <div class="ctl-row">
+        <div class="ctrl" id="cMic" style="background:var(--teal-soft)"></div>
+        <div class="ctrl" id="cKb"></div>
+        <div class="ctrl" id="cSpk"></div>
+        <div class="ctrl end" id="cEnd"></div>
+      </div>
+      <div class="ctl-row" style="gap:16px">
+        <span class="state-chip state-listen" style="margin:0">
+          <span class="dot" style="background:#0a8c6e"></span> Listening</span>
+        <span class="state-chip state-think" style="margin:0">
+          <span class="dot" style="background:#5b3fd6"></span> Thinking…</span>
+        <span class="state-chip state-speak" style="margin:0">
+          <span class="dot" style="background:#ff6b4a"></span> Dana is speaking</span>
+      </div>
+    </section>
+
+    <section class="spec">
+      <h4>Feedback cards</h4>
+      <div class="fb-pair">
+        <div class="fb nice fb-mini">
+          <div class="fb-head" id="fh1"></div>
+          <div class="fb-said">"…last week and it stopped working."</div>
+          <div class="fb-why">Problem and timeframe, one sentence.</div>
+        </div>
+        <div class="fb warn fb-mini">
+          <div class="fb-head" id="fh2"></div>
+          <div class="fb-said"><span style="color:var(--coral-ink);text-decoration:line-through;
+            text-decoration-thickness:2px">I buyed</span> →
+            <span style="color:var(--teal-ink)">I bought</span></div>
+          <div class="fb-why">buy → bought. Never takes -ed.</div>
+          <div class="fb-zh">中文：不规则动词不加 -ed。</div>
+        </div>
+      </div>
+      <div class="fb tip fb-mini" style="margin-top:12px">
+        <div class="fb-head" id="fh3"></div>
+        <div class="fb-said" style="font-weight:600">Ask <b>"What are my options?"</b> —
+          it puts the next move on them.</div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script src="_mascot.js"></script>
+<script src="_icons.js"></script>
+<script src="_scenes.js"></script>
+<script src="_check.js"></script>
+<script>
+  const BRAND = [
+    ['Coral','#FF6B4A'],['Violet','#7C5CFF'],['Teal','#12C8A0'],
+    ['Sun','#FFC93C'],['Sky','#3DBDFF'],['Pink','#FF7AC6']];
+  const NEUTRAL = [
+    ['Ink','#1B1633'],['Ink 2','#3D3659'],['Muted','#66617C'],
+    ['Line','#EFEAF6'],['Surface','#FFFFFF'],['Canvas','#FFF7F2']];
+  const PAIRS = [
+    ['Coral','#FF6B4A','#B23A1A'],['Violet*','#6A44F0','#5B3FD6','#FFFFFF'],
+    ['Teal','#12C8A0','#08735A'],['Sun','#FFC93C','#8A6013'],
+    ['Sky','#3DBDFF','#1A6A99'],['Pink','#FF7AC6','#A8347F']];
+
+  const sw = list => list.map(([n,h]) => `
+    <div class="sw"><i style="background:${h};${h==='#FFFFFF'?'box-shadow:inset 0 0 0 2px #EFEAF6':''}"></i>
+      <b>${n}</b><span>${h}</span></div>`).join('');
+
+  document.getElementById('brandSw').innerHTML = sw(BRAND);
+  document.getElementById('neutSw').innerHTML = sw(NEUTRAL);
+  document.getElementById('inkSw').innerHTML = PAIRS.map(([n, fill, ink, tc]) => `
+    <div class="sw"><i class="aa" style="background:${fill};color:${tc || '#1B1633'}">Aa</i>
+      <b>${n}</b><span>ink ${ink}</span></div>`).join('');
+
+  const MOODS = [
+    ['idle','Idle','Not your turn'],['listen','Listening','Mic is open'],
+    ['think','Thinking','Holding the floor'],['write','Noting','Coach is writing'],
+    ['cheer','Cheer','Scene went well']];
+  document.getElementById('moods').innerHTML = MOODS.map(([m,n,d]) => `
+    <div class="m">${pipSvg(88, m)}<b>${n}</b><span>${d}</span></div>`).join('');
+
+  document.getElementById('cast').innerHTML = SCENES.map(s => `
+    <div class="c">${avatarSvg({ size: 78, accent: s.accent, ...s.avatar })}
+      <b>${s.them}</b><span>${s.role}</span></div>`).join('');
+
+  document.getElementById('brandPip').innerHTML = pipSvg(34, 'idle');
+  document.getElementById('settings').innerHTML = icon('settings', 20, '#3D3659', 2.2);
+  document.getElementById('cMic').innerHTML = icon('mic', 22, '#08735A', 2.3);
+  document.getElementById('cKb').innerHTML = icon('keyboard', 22, '#66617C', 2.2);
+  document.getElementById('cSpk').innerHTML = icon('speaker', 22, '#66617C', 2.2);
+  document.getElementById('cEnd').innerHTML =
+    icon('stop', 17, '#fff', 2.4) + '<span>End scene</span>';
+
+  document.getElementById('fh1').innerHTML = icon('heart', 14, '#08735A', 2.4) + ' Nice';
+  document.getElementById('fh2').innerHTML = icon('warn', 14, '#8A6013', 2.4) + ' Upgrade';
+  document.getElementById('fh3').innerHTML = icon('sparkle', 14, '#5B3FD6', 2.4) + ' Try next';
+</script>
+</body>
+</html>
