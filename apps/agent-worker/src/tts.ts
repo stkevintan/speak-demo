@@ -37,6 +37,8 @@ export async function synthesizeWithFallback(
           try {
             const content = await fullText;
             if (isCurrent() && content.trim()) await fallback(content);
+            // The SDK owns retry limits; keep the fallback text-only behavior
+            // and let the failed provider turn terminate normally.
           } catch {
             controller.error(new Error("TTS text fallback failed"));
             return;

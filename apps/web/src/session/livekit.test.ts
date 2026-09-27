@@ -119,3 +119,10 @@ test("disposing removes handlers and stops command retries", async t => {
   assert.equal(h.commands.length, 1);
   assert.equal(useSessionStore.getState().snapshot.state, "idle");
 });
+
+test("background speech during the character turn does not automatically interrupt", t => {
+  const h = setup(t);
+  useSessionStore.setState(state => ({ mic: true, snapshot: { ...state.snapshot, state: "speaking" } }));
+  h.room.emit(RoomEvent.ActiveSpeakersChanged, [h.room.localParticipant]);
+  assert.equal(h.commands.length, 0);
+});

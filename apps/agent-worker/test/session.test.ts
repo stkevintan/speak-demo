@@ -31,6 +31,39 @@ async function setup(model: TextModel = { complete: async () => '{"findings":[]}
   return { session, store, clock, sent, calls, logs, voice };
 }
 
+test("opening transcript callback does not deadlock startup or command acknowledgements", { timeout: 1000 }, async () => {
+  const store = new MemoryStore();
+  const sent: ServerEvent[] = [];
+  const model: TextModel = { complete: async () => '{"findings":[]}', close: async () => {} };
+  const voice: VoicePort = {
+    interrupt: async () => {}, finish: async () => {}, commit: () => {},
+    replyText: () => {}, say: () => {}, reengage: () => {},
+  };
+  const session = new Session(bootstrap, lease, store, voice, new Coach(bootstrap, model),
+    async (event) => { sent.push(event); }, () => {}, 1600);
+  await session.initialize();
+  await Promise.all([session.start(), session.start()]);
+  await session.character(bootstrap.course.opener, "opening", Date.now());
+  await session.command(command("session.sync", { afterSeq: 0 }, "startup-sync"));
+  assert.equal(session.checkpoint.snapshot.transcript.length, 1);
+  assert.ok(sent.some(event => event.type === "command.ack" && event.payload.commandId === "startup-sync"));
+  assert.ok(sent.some(event => event.type === "session.replay"));
+});
+
+test("audio input follows learner turn state and stays off after end", async () => {
+  const { session, voice } = await setup();
+  const enabled: boolean[] = [];
+  voice.setListening = value => { enabled.push(value); };
+  await session.state("thinking");
+  await session.state("speaking");
+  await session.state("listening");
+  await session.command(command("learner.text", { text: "Hello" }));
+  await session.state("listening");
+  await session.end("user");
+  await session.state("listening");
+  assert.deepEqual(enabled, [false, false, true, false, true, false]);
+});
+
 test("starts immediately, checkpoints before publishing, and dedupes typed commands", async () => {
   const { session, store, calls, sent } = await setup();
   assert.equal(calls[0], "opener");

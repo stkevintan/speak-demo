@@ -52,3 +52,20 @@ pnpm --filter @rehearsal/agent-worker build
 ```
 
 Focused tests cover turn policy, SDK interruption and played-prefix handling, typed input, lifecycle races, dedupe/replay/freeze, coach isolation, TTS fallback, and Redis adapter preconditions. They do not execute Lua against live Redis or prove real provider, microphone, or speaker behavior.
+
+### Learner-turn audio input
+
+SDK audio input starts disabled. The runtime enables input only in `listening`,
+then disables it during `thinking`, `speaking`, shutdown, and failure. This gates
+incoming audio to VAD/STT; providers remain configured rather than being rebuilt
+per turn. Disabling audio does not prevent SDK STT connection initialization.
+STT and TTS retries are disabled at the AgentSession connection-options layer,
+which overrides provider constructor defaults. A 429 still requires checking
+provider quota/concurrency; disabling retries does not cure provider rejection.
+Assistant text is published once before TTS; a TTS failure emits only an alert,
+not a second transcript entry. Browser active-speaker notifications no longer automatically interrupt
+character playback. Explicit interruption and typed replies remain supported.
+
+Opening transcript persistence runs outside the runtime's serialized start task:
+it queues its own transcript event before playback, without waiting on itself or
+blocking subsequent sync acknowledgements.

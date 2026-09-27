@@ -40,7 +40,6 @@ export class Voice implements VoicePort {
   private readonly agent: voice.Agent;
 
   constructor(config: Config, bootstrap: WorkerBootstrap, vad: VAD, private readonly log: Log) {
-    const fallbackTexts = new Set<string>();
     let ttsErrorRevision = 0;
     const getRuntime = () => {
       if (!this.runtime) throw new Error("Voice runtime not attached");
@@ -92,11 +91,15 @@ export class Voice implements VoicePort {
         const generation = runtime.generation;
         const revision = ttsErrorRevision;
         const startedAt = Date.now();
-        return synthesizeWithFallback(text, (input) => voice.Agent.default.ttsNode(this, input, settings),
-          async (content) => {
-            fallbackTexts.add(content.trim());
+        // Materialize the generated sentence before handing it to TTS so the
+        // transcript can be persisted immediately before the first audio frame.
+        const content = await collectText(text);
+        if (content.trim() && !runtime.isEnding && runtime.generation === generation) {
+          await runtime.character(content, `speech:${generation}:${startedAt}`, startedAt);
+        }
+        return synthesizeWithFallback(toTextStream(content), (input) => voice.Agent.default.ttsNode(this, input, settings),
+          async () => {
             await runtime.alert("tts_unavailable", "Audio is unavailable. The character's reply is shown as text; you can keep talking or type.");
-            await runtime.character(content, `tts-fallback:${generation}:${startedAt}`, startedAt);
           },
           () => !runtime.isEnding && runtime.generation === generation,
           () => ttsErrorRevision !== revision);
@@ -105,9 +108,14 @@ export class Voice implements VoicePort {
     this.agent = new Character();
     this.session = new voice.AgentSession({
       vad,
-      stt: new inference.STT({ model: config.STT_MODEL, sampleRate: AUDIO_SAMPLE_RATE }),
+      stt: new inference.STT({ model: config.STT_MODEL, sampleRate: AUDIO_SAMPLE_RATE, connOptions: { maxRetry: 0, retryIntervalMs: 0, timeoutMs: 10_000 } }),
       llm: inference.LLM.fromModelString(config.LLM_MODEL),
-      tts: new inference.TTS({ model: config.TTS_MODEL, ...(config.TTS_VOICE ? { voice: config.TTS_VOICE } : {}) }),
+      tts: new inference.TTS({ model: config.TTS_MODEL, ...(config.TTS_VOICE ? { voice: config.TTS_VOICE } : {}), connOptions: { maxRetry: 0, retryIntervalMs: 0, timeoutMs: 10_000 } }),
+      connOptions: {
+        maxUnrecoverableErrors: 1,
+        sttConnOptions: { maxRetry: 0 },
+        ttsConnOptions: { maxRetry: 0 },
+      },
       useTtsAlignedTranscript: true,
     });
     this.session.on(AgentSessionEventTypes.UserStateChanged, (event) => {
@@ -120,13 +128,6 @@ export class Voice implements VoicePort {
         void getRuntime().state(state).catch(() => log("voice.state_failed"));
       }
     });
-    this.session.on(AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
-      if (item.type === "message" && item.role === "assistant" && item.textContent?.trim()) {
-        if (fallbackTexts.delete(item.textContent.trim())) return;
-        void getRuntime().character(item.textContent, item.id, item.createdAt)
-          .catch(() => log("voice.transcript_failed"));
-      }
-    });
     this.session.on(AgentSessionEventTypes.UserTranscriptionTimeout, () => {
       getRuntime().detector.reset();
       void getRuntime().alert("asr_timeout", "I could not hear that. Check your microphone or type your reply.")
@@ -137,6 +138,13 @@ export class Voice implements VoicePort {
       if (error.type === "tts_error") {
         ttsErrorRevision++;
         log("voice.tts_failed");
+        return;
+      }
+      if (error.type === "llm_error" && error.error instanceof Error && /429|rate.?limit/i.test(error.error.message)) {
+        log("voice.llm_rate_limited");
+        void getRuntime().alert("voice_unavailable", "The character service is busy. Please wait a moment, then try again.")
+          .catch(() => log("voice.alert_failed"));
+        void getRuntime().state("listening").catch(() => log("voice.state_failed"));
         return;
       }
       log("voice.provider_error");
@@ -152,6 +160,8 @@ export class Voice implements VoicePort {
   attach(runtime: Session): void { this.runtime = runtime; }
 
   async start(ctx: JobContext, learnerIdentity: string): Promise<void> {
+    // Gate incoming audio during opening; the SDK may still initialize STT.
+    this.session.input.setAudioEnabled(false);
     await this.session.start({
       agent: this.agent, room: ctx.room,
       inputOptions: { participantIdentity: learnerIdentity, audioSampleRate: AUDIO_SAMPLE_RATE,
@@ -160,6 +170,8 @@ export class Voice implements VoicePort {
       record: { audio: false, transcript: false, traces: false, logs: false, redaction: true },
     });
   }
+
+  setListening(enabled: boolean): void { this.session.input.setAudioEnabled(enabled); }
 
   async interrupt(): Promise<void> {
     try { await within(this.session.interrupt().await, 2000); }
@@ -188,4 +200,19 @@ async function within<T>(promise: Promise<T>, ms: number): Promise<T> {
       timer = setTimeout(() => reject(new Error("Voice operation timeout")), ms);
     })]);
   } finally { if (timer) clearTimeout(timer); }
+}
+
+function toTextStream(text: string): ReadableStream<string> {
+  return new ReadableStream({ start(controller) { controller.enqueue(text); controller.close(); } });
+}
+
+async function collectText(text: ReadableStream<string> | AsyncIterable<string>): Promise<string> {
+  if (text instanceof ReadableStream) {
+    let result = "";
+    for await (const part of text) result += part;
+    return result;
+  }
+  let result = "";
+  for await (const part of text) result += part;
+  return result;
 }

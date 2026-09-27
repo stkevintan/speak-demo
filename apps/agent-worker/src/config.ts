@@ -24,7 +24,9 @@ const Environment = z.object({
 export type Config = z.infer<typeof Environment>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const parsed = Environment.safeParse(env);
+  // Treat blank optional entries from dotenv files like omitted values.
+  const normalized = { ...env, TTS_VOICE: env.TTS_VOICE?.trim() || undefined };
+  const parsed = Environment.safeParse(normalized);
   if (!parsed.success) {
     throw new Error(`Invalid worker configuration: ${[...new Set(parsed.error.issues.map((issue) => issue.path.join(".")))].join(", ")}`);
   }

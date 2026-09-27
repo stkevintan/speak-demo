@@ -14,14 +14,14 @@ export const accents = {
 
 export function Shell({ children, header }: { children: ReactNode; header?: ReactNode }) {
   return (
-    <div className="mx-auto min-h-dvh max-w-[1600px] px-4 pb-8 sm:px-8 lg:px-11">
-      <header className="flex min-h-20 flex-wrap items-center gap-3 py-3">
+    <div className="mx-auto flex h-dvh max-h-dvh min-h-0 max-w-[1600px] flex-col overflow-hidden px-4 pb-8 sm:px-8 lg:px-11">
+      <header className="flex min-h-20 shrink-0 flex-wrap items-center gap-3 py-3">
         <Link to="/scenes" className="flex min-h-11 items-center gap-2 text-xl font-black tracking-tight" aria-label="Rehearsal home">
           <Pip size={36} /> Rehearsal
         </Link>
         <div className="ml-auto flex flex-wrap items-center gap-3">{header}</div>
       </header>
-      <main>{children}</main>
+      <main className="flex min-h-0 flex-1 flex-col">{children}</main>
     </div>
   );
 }

@@ -77,13 +77,6 @@ export class LiveSession {
       .on(RoomEvent.AudioPlaybackStatusChanged, () => {
         if (!this.disposed) useSessionStore.setState({ audioBlocked: !this.room.canPlaybackAudio });
       })
-      .on(RoomEvent.ActiveSpeakersChanged, speakers => {
-        const state = useSessionStore.getState();
-        if (!this.disposed && state.mic && state.snapshot.state === "speaking" &&
-          speakers.some(p => p.identity === this.room.localParticipant.identity) && !this.cancellingAudio) {
-          void this.interrupt().catch(error => this.report(this.message(error)));
-        }
-      })
       .on(RoomEvent.Reconnecting, () => {
         if (!this.disposed) useSessionStore.setState({ connection: "reconnecting" });
       })

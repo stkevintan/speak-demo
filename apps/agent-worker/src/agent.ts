@@ -80,6 +80,9 @@ async function entry(ctx: JobContext): Promise<void> {
         disconnectedTimer = undefined;
       }
     });
+    // Open the SDK session only after the room and learner are present.
+    await ctx.connect();
+    await ctx.waitForParticipant(bootstrap.learnerIdentity);
     await voice.start(ctx, bootstrap.learnerIdentity);
     await runtime.start();
   } catch {

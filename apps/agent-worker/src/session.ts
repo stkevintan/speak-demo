@@ -11,6 +11,7 @@ import type { Store } from "./store.js";
 import { TurnDetector, clock, type Timer } from "./turn-detector.js";
 
 export interface VoicePort {
+  setListening?(enabled: boolean): void;
   interrupt(): Promise<void>;
   finish(): Promise<void>;
   commit(): void;
@@ -86,13 +87,15 @@ export class Session {
     await this.store.write(this.current, 0);
   }
 
-  start(): Promise<void> {
-    return this.enqueue(async () => {
-      if (this.ending || this.ready) return;
+  async start(): Promise<void> {
+    const startOpening = await this.enqueue(async () => {
+      if (this.ending || this.ready) return false;
       this.ready = true;
       await this.stateNow("thinking");
-      this.voice.say(this.bootstrap.course.opener);
+      return true;
     });
+    if (!startOpening || this.ending) return;
+    this.voice.say(this.bootstrap.course.opener);
   }
 
   speechStart(): void {
@@ -287,6 +290,7 @@ export class Session {
   end(reason: EndReason, commandId: string = randomUUID()): Promise<void> {
     if (this.endPromise) return this.endPromise;
     this.ending = true;
+    this.voice.setListening?.(false);
     this.detector.reset();
     this.abortCoach.abort();
     this.generation++;
@@ -367,6 +371,7 @@ export class Session {
   private fail(code: string): void {
     this.failed = true;
     this.ending = true;
+    this.voice.setListening?.(false);
     this.abortCoach.abort();
     this.detector.reset();
     this.log(code, { sessionId: this.bootstrap.sessionId });
@@ -418,6 +423,7 @@ export class Session {
     if (turn) await this.emit({ type: "learner.turn", payload: turn });
   }
   private async stateNow(state: "listening" | "thinking" | "speaking"): Promise<void> {
+    this.voice.setListening?.(state === "listening");
     if (this.current.snapshot.state === state) return;
     if (state === "listening") this.resetIdle();
     await this.emit({ type: "agent.state", payload: { state } });

@@ -8,9 +8,11 @@
     "node": ">=20"
   },
   "scripts": {
+    "dev": "pnpm --parallel --filter @rehearsal/control-plane --filter @rehearsal/agent-worker --filter @rehearsal/web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm --filter @rehearsal/contracts build && pnpm --filter @rehearsal/contracts check:contracts && pnpm --parallel --filter @rehearsal/control-plane --filter @rehearsal/agent-worker --filter @rehearsal/web test",
     "typecheck": "pnpm -r typecheck",
     "codegen": "pnpm --filter @rehearsal/contracts codegen",
-    "build": "pnpm --filter @rehearsal/contracts build",
     "check": "pnpm check:loader && pnpm check:schema && pnpm check:courses",
     "check:courses": "pnpm --filter @rehearsal/contracts check:courses",
     "check:schema": "pnpm --filter @rehearsal/contracts check:schema",

@@ -29,6 +29,7 @@ export function Live({ profile }: { profile: Profile }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const transcript = useRef<HTMLDivElement>(null);
   const [following, setFollowing] = useState(true);
+  const followReleaseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const composer = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -57,8 +58,14 @@ export function Live({ profile }: { profile: Profile }) {
   }, [state.snapshot.state, active, ending, navigate, sessionId]);
 
   useEffect(() => {
-    if (following && transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight;
-  }, [state.snapshot.transcript.length, following]);
+    if (!following) return;
+    const frame = requestAnimationFrame(() => {
+      transcript.current?.scrollTo({ top: transcript.current.scrollHeight, behavior: "auto" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [following, state.snapshot.transcript]);
+
+  useEffect(() => () => clearTimeout(followReleaseTimer.current), []);
 
   const end = async () => {
     if (endLock.current) return;
@@ -126,6 +133,7 @@ export function Live({ profile }: { profile: Profile }) {
   const tone = accents[presentation.tone];
   const available = state.connection === "connected" && !ending && state.snapshot.state !== "ended";
   const suggestions = state.snapshot.preferences.suggestions ? state.snapshot.suggestions : null;
+  const transcriptTurns = state.snapshot.transcript;
   return (
     <Shell header={<><span className="pill hidden sm:inline-flex">{course.title}</span><span className="pill">{level}</span><Settings profile={profile} live /></>}>
       {state.problem && <Problem message={state.problem} />}
@@ -146,9 +154,9 @@ export function Live({ profile }: { profile: Profile }) {
           <button className="button button-secondary" onClick={() => { void live.current?.startAudio(); }}>Enable audio</button>
         </div>
       )}
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
-        <div className="min-w-0">
-          <section className="flex min-h-[420px] flex-col rounded-[32px] bg-gradient-to-br from-white via-[#fbf7ff] to-[#fff6f1] p-5 shadow-card sm:p-7">
+      <div className="grid min-h-0 flex-1 items-stretch gap-5 overflow-hidden xl:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
+        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[32px] bg-gradient-to-br from-white via-[#fbf7ff] to-[#fff6f1] p-5 shadow-card sm:p-7">
             <header className="flex flex-wrap items-center gap-4 border-b-2 border-line pb-5">
               <div className="rounded-full bg-white p-2 ring-4 ring-violet-soft"><Avatar {...course.avatar} accent={colour.fill} size={80} /></div>
               <div className="min-w-0 flex-1">
@@ -163,23 +171,37 @@ export function Live({ profile }: { profile: Profile }) {
               </div>
             </header>
             <p className="my-4 text-xs font-semibold text-muted"><strong className="text-body">Your goal:</strong> {course.goal}</p>
-            <div ref={transcript} role="log" aria-label="Conversation transcript" aria-live="polite" aria-relevant="additions" className="flex max-h-[52dvh] min-h-52 flex-col gap-3 overflow-y-auto overscroll-contain py-3 pr-2" onScroll={e => {
+            <div ref={transcript} role="log" aria-label="Conversation transcript" aria-live="polite" aria-relevant="additions" className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-3 pr-2" onScroll={e => {
               const el = e.currentTarget;
-              setFollowing(el.scrollHeight - el.scrollTop - el.clientHeight < 64);
+              const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 64;
+              setFollowing(atBottom);
+              if (atBottom) clearTimeout(followReleaseTimer.current);
+              if (!atBottom) {
+                clearTimeout(followReleaseTimer.current);
+                followReleaseTimer.current = setTimeout(() => {
+                  setFollowing(true);
+                  if (transcript.current) transcript.current.scrollTo({ top: transcript.current.scrollHeight, behavior: "smooth" });
+                }, 1500);
+              }
             }}>
-              {state.snapshot.transcript.length === 0 && <div className="my-auto rounded-2xl bg-white p-5 text-sm font-semibold text-muted">{state.connection === "connected" ? `${course.counterpart.name} is getting ready to open the scene. You don't need to think of a first line.` : "Connecting you to the character..."}</div>}
-              {state.snapshot.transcript.map(turn => (
+              <div className="flex min-h-full flex-col gap-3">
+              {state.connection !== "connected" && state.snapshot.transcript.length === 0 && <div className="my-auto rounded-2xl bg-white p-5 text-sm font-semibold text-muted">Connecting you to the character...</div>}
+              {transcriptTurns.map(turn => (
                 <div key={turn.turnId} className={`max-w-[92%] break-words rounded-[22px] px-4 py-3 text-sm font-semibold leading-relaxed sm:max-w-[80%] ${turn.role === "character" ? "self-start rounded-bl-lg bg-white shadow-sm" : turn.source === "typed" ? "self-end rounded-br-lg border-2 border-violet-soft bg-white" : "self-end rounded-br-lg bg-violet-deep text-white"}`}>
                   <span className={`mb-1 block text-[10px] font-black uppercase tracking-wide ${turn.role === "learner" && turn.source === "asr" ? "text-white" : "text-muted"}`}>{turn.role === "character" ? course.counterpart.name : turn.source === "typed" ? "You - typed" : "You"}</span>
                   {turn.text}
                 </div>
               ))}
+              </div>
             </div>
-            {!following && <button className="button mt-2 self-center bg-violet-soft text-violet-ink" onClick={() => setFollowing(true)}><ArrowDown size={16} />Latest messages</button>}
+            {!following && <button className="button mt-2 self-center bg-violet-soft text-violet-ink" onClick={() => {
+              setFollowing(true);
+              requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
+            }}><ArrowDown size={16} />Latest messages</button>}
             <p className="mt-4 text-xs font-bold text-muted">{state.mode === "typing" ? "Same conversation. Same quiet coach." : "Speak naturally. You can interrupt the character."}</p>
           </section>
 
-          <div className="sticky bottom-0 z-20 mt-4 rounded-[26px] bg-white p-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-card sm:p-4">
+          <div className="mt-4 shrink-0 rounded-[26px] bg-white p-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-card sm:p-4">
             {state.mode === "typing" && <form className="mb-3 flex items-end gap-2 rounded-2xl border-2 border-violet p-2" onSubmit={e => { e.preventDefault(); void send(); }}>
               <label className="sr-only" htmlFor="learner-text">Your reply</label>
               <textarea ref={composer} id="learner-text" className="max-h-40 min-h-12 flex-1 resize-y rounded-xl p-2 text-sm outline-offset-0" rows={2} maxLength={MAX_TYPED_TEXT_LENGTH} placeholder="Write your reply..." value={draft} disabled={sending || !available} onChange={e => setDraft(e.target.value)} onKeyDown={e => {
