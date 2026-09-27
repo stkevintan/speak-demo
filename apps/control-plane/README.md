@@ -5,6 +5,16 @@ profiles, validated courses, session metadata, immutable debriefs and category
 memory. Redis stores live checkpoints, leases and the close handshake. Media
 never passes through this process.
 
+SQLite persistence uses **Drizzle ORM and fully normalized tables**: no JSON
+columns, document serialization, or JSON extraction. See [DATABASE.md](../../docs/DATABASE.md)
+for the tables, relationships, transaction boundaries and learned/unlearn rules.
+
+**Fresh start:** the app now opens `DATA_DIR/rehearsal-v2.sqlite`. Existing
+`rehearsal.sqlite`, `rehearsal.sqlite-wal` and `rehearsal.sqlite-shm` are untouched.
+There is no migration/import: old profiles, history and memory remain in the
+old database and do not appear in the app. YAML courses populate the new catalog
+normally. Restarting preserves data already written to the v2 database.
+
 ## Local setup
 
 From the workspace root:
@@ -67,8 +77,10 @@ Feature modules depend on ProfileRepo, CourseRepo, SessionRepo, PatternRepo and
 LiveSessionStore ports. Only StorageModule imports SQLite/Redis drivers.
 CourseModule uses shared loadCourse/toCourseCard; invalid course files are
 logged with their filename and omitted, duplicates/empty catalog fail startup.
-Restart imports YAML updates. Each session stores its full validated course
-snapshot, so later course edits cannot change an existing session's context.
+Restart imports YAML updates. Each session references its own immutable course
+definition and normalized profile snapshot, so later course/profile edits
+cannot change an existing session's context. Catalog replacement removes only
+unreferenced definitions and cascades their child rows.
 
 Session start durably registers metadata, initializes bootstrap and an empty
 idle checkpoint, creates a room, explicitly dispatches the worker, and mints a

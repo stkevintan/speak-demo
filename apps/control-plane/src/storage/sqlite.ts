@@ -2,158 +2,192 @@ import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { Inject, Injectable } from "@nestjs/common";
 import Database from "better-sqlite3";
-import { z } from "zod";
+import { and, asc, desc, eq, inArray, notInArray, or, sql } from "drizzle-orm";
+import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { Course, Debrief, EndReason, Pattern, Profile, ProfilePatch } from "@rehearsal/contracts";
 import { CONFIG, type AppConfig } from "../config.js";
 import { StoredSession, type PatternDelta } from "./ports.js";
-
-const JsonRow = z.object({ value: z.string() });
-const DeltaList = z.array(z.strictObject({ category: z.string().min(1), count: z.number().int().positive() }));
+import { DATABASE_FILENAME, initializeStorage } from "./initialize.js";
+import { DeltaList, insertCourse, insertDebrief, insertSession, readCourse, readDebrief, readSession } from "./rows.js";
+import * as schema from "./schema.js";
 
 @Injectable()
 export class SqliteStorage {
-  private readonly db: Database.Database;
+  private readonly client: Database.Database;
+  private readonly db: BetterSQLite3Database<typeof schema>;
 
   constructor(@Inject(CONFIG) config: AppConfig) {
     mkdirSync(config.dataDir, { recursive: true });
-    this.db = new Database(resolve(config.dataDir, "rehearsal.sqlite"));
-    if (z.number().parse(this.db.pragma("user_version", { simple: true })) > 1) {
-      this.db.close();
-      throw new Error("SQLite schema is newer than this control-plane version");
+    this.client = new Database(resolve(config.dataDir, DATABASE_FILENAME));
+    try {
+      this.client.pragma("journal_mode = WAL");
+      this.client.pragma("foreign_keys = ON");
+      this.client.pragma("busy_timeout = 5000");
+      initializeStorage(this.client);
+      this.db = drizzle(this.client, { schema });
+    } catch (error) {
+      this.client.close();
+      throw new Error("SQLite initialization failed; check the v2 database schema", { cause: error });
     }
-    this.db.pragma("journal_mode = WAL");
-    this.db.pragma("foreign_keys = ON");
-    this.db.pragma("busy_timeout = 5000");
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, value TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS courses (id TEXT PRIMARY KEY, value TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS sessions (
-        id TEXT PRIMARY KEY, user_id TEXT NOT NULL, status TEXT NOT NULL,
-        cleanup_needed INTEGER NOT NULL DEFAULT 1, value TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS debriefs (
-        session_id TEXT PRIMARY KEY REFERENCES sessions(id), value TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS patterns (
-        user_id TEXT NOT NULL, category TEXT NOT NULL, count INTEGER NOT NULL,
-        last_seen TEXT NOT NULL, PRIMARY KEY(user_id, category)
-      );
-      CREATE TABLE IF NOT EXISTS pattern_updates (
-        session_id TEXT PRIMARY KEY REFERENCES sessions(id), user_id TEXT NOT NULL,
-        seen_at TEXT NOT NULL, value TEXT NOT NULL, applied INTEGER NOT NULL DEFAULT 0
-      );
-      PRAGMA user_version = 1;
-    `);
   }
 
-  onModuleDestroy() { this.db.close(); }
-
-  private value<T>(row: unknown, schema: z.ZodType<T>): T | undefined {
-    return row === undefined ? undefined : schema.parse(JSON.parse(JsonRow.parse(row).value));
-  }
+  onModuleDestroy() { this.client.close(); }
 
   async getOrCreate(userId: string): Promise<Profile> {
     const initial = Profile.parse({
       userId, level: "B1", onboarded: false, chinese: true, suggestions: true, patterns: [],
     });
-    this.db.prepare("INSERT OR IGNORE INTO profiles(id,value) VALUES (?,?)").run(userId, JSON.stringify(initial));
-    return Profile.parse(this.value(this.db.prepare("SELECT value FROM profiles WHERE id=?").get(userId), Profile));
+    const { patterns: _, ...row } = initial;
+    this.db.insert(schema.profiles).values(row).onConflictDoNothing().run();
+    return Profile.parse({
+      ...this.db.select().from(schema.profiles).where(eq(schema.profiles.userId, userId)).get(), patterns: [],
+    });
   }
 
   async patch(userId: string, patch: ProfilePatch): Promise<Profile> {
+    const parsed = ProfilePatch.parse(patch);
     await this.getOrCreate(userId);
-    return this.db.transaction(() => {
-      const current = Profile.parse(this.value(this.db.prepare("SELECT value FROM profiles WHERE id=?").get(userId), Profile));
-      const value = Profile.parse({
-        ...current, ...ProfilePatch.parse(patch),
-        onboarded: current.onboarded || patch.level !== undefined,
+    return this.db.transaction((tx) => {
+      const current = Profile.parse({
+        ...tx.select().from(schema.profiles).where(eq(schema.profiles.userId, userId)).get(), patterns: [],
       });
-      this.db.prepare("UPDATE profiles SET value=? WHERE id=?").run(JSON.stringify(value), userId);
+      const value = Profile.parse({ ...current, ...parsed, onboarded: current.onboarded || parsed.level !== undefined });
+      const { patterns: _, ...row } = value;
+      tx.update(schema.profiles).set(row).where(eq(schema.profiles.userId, userId)).run();
       return value;
-    })();
+    }, { behavior: "immediate" });
   }
 
   async replaceCatalog(courses: Course[]) {
-    this.db.transaction(() => {
-      this.db.prepare("DELETE FROM courses").run();
-      const insert = this.db.prepare("INSERT INTO courses(id,value) VALUES (?,?)");
-      for (const course of courses) insert.run(course.id, JSON.stringify(Course.parse(course)));
-    })();
+    const values = courses.map((course) => Course.parse(course));
+    this.db.transaction((tx) => {
+      tx.delete(schema.courses).run();
+      for (const course of values) {
+        const definitionId = insertCourse(tx, course);
+        tx.insert(schema.courses).values({ id: course.id, definitionId }).run();
+      }
+      tx.delete(schema.courseDefinitions).where(and(
+        notInArray(schema.courseDefinitions.definitionId, tx.select({ id: schema.courses.definitionId }).from(schema.courses)),
+        notInArray(schema.courseDefinitions.definitionId, tx.select({ id: schema.sessions.courseDefinitionId }).from(schema.sessions)),
+      )).run();
+    }, { behavior: "immediate" });
   }
   async listCourses(): Promise<Course[]> {
-    return this.db.prepare("SELECT value FROM courses ORDER BY id").all()
-      .map((row) => Course.parse(this.value(row, Course)));
+    return this.db.transaction((tx) => tx.select().from(schema.courses).orderBy(asc(schema.courses.id)).all()
+      .map((row) => readCourse(tx, row.definitionId)));
   }
-  async course(id: string) { return this.value(this.db.prepare("SELECT value FROM courses WHERE id=?").get(id), Course); }
+  async course(id: string) {
+    return this.db.transaction((tx) => {
+      const row = tx.select().from(schema.courses).where(eq(schema.courses.id, id)).get();
+      return row ? readCourse(tx, row.definitionId) : undefined;
+    });
+  }
 
   async create(session: StoredSession) {
-    const value = StoredSession.parse(session);
-    this.db.prepare("INSERT INTO sessions(id,user_id,status,cleanup_needed,value) VALUES (?,?,?,?,?)")
-      .run(value.id, value.userId, value.status, Number(value.cleanupNeeded), JSON.stringify(value));
+    const parsed = StoredSession.parse(session);
+    this.db.transaction((tx) => insertSession(tx, parsed), { behavior: "immediate" });
   }
   async get(id: string) {
-    return this.value(this.db.prepare("SELECT value FROM sessions WHERE id=?").get(id), StoredSession);
+    return this.db.transaction((tx) => {
+      const row = tx.select().from(schema.sessions).where(eq(schema.sessions.id, id)).get();
+      return row ? readSession(tx, row) : undefined;
+    });
   }
   async setStatus(id: string, status: StoredSession["status"]) {
-    this.db.transaction(() => {
-      const current = this.value(this.db.prepare("SELECT value FROM sessions WHERE id=?").get(id), StoredSession);
-      if (!current) throw new Error("Session disappeared during transition");
-      if (current.status === "ended" || current.status === "failed") return;
-      // A delayed start must not reopen a concurrently closing session.
-      if (status === "live" && current.status !== "starting") return;
-      this.db.prepare("UPDATE sessions SET status=?,value=? WHERE id=?")
-        .run(status, JSON.stringify({ ...current, status }), id);
-    })();
+    StoredSession.shape.status.parse(status);
+    this.db.transaction((tx) => {
+      const row = tx.select().from(schema.sessions).where(eq(schema.sessions.id, id)).get();
+      if (!row) throw new Error("Session disappeared during transition");
+      if (row.status === "ended" || row.status === "failed") return;
+      if (status === "live" && row.status !== "starting") return;
+      tx.update(schema.sessions).set({ status }).where(eq(schema.sessions.id, id)).run();
+    }, { behavior: "immediate" });
   }
   async pending(): Promise<StoredSession[]> {
-    return this.db.prepare("SELECT value FROM sessions WHERE status NOT IN ('ended','failed') OR cleanup_needed=1").all()
-      .map((row) => StoredSession.parse(this.value(row, StoredSession)));
+    return this.db.transaction((tx) => tx.select().from(schema.sessions).where(or(
+      notInArray(schema.sessions.status, ["ended", "failed"]),
+      eq(schema.sessions.cleanupNeeded, true),
+    )).all().map((row) => readSession(tx, row)));
   }
-  async debrief(id: string) { return this.value(this.db.prepare("SELECT value FROM debriefs WHERE session_id=?").get(id), Debrief); }
+  async debrief(id: string) {
+    return this.db.transaction((tx) => {
+      const row = tx.select().from(schema.debriefs).where(eq(schema.debriefs.sessionId, id)).get();
+      return row ? readDebrief(tx, row) : undefined;
+    });
+  }
 
   async complete(id: string, debrief: Debrief, deltas: PatternDelta[], reason: EndReason): Promise<Debrief> {
-    return this.db.transaction(() => {
-      const existing = this.value(this.db.prepare("SELECT value FROM debriefs WHERE session_id=?").get(id), Debrief);
-      if (existing) return existing;
-      const session = StoredSession.parse(this.value(this.db.prepare("SELECT value FROM sessions WHERE id=?").get(id), StoredSession));
+    return this.db.transaction((tx) => {
+      const existing = tx.select().from(schema.debriefs).where(eq(schema.debriefs.sessionId, id)).get();
+      if (existing) return readDebrief(tx, existing);
+      const row = tx.select().from(schema.sessions).where(eq(schema.sessions.id, id)).get();
+      if (!row) throw new Error("Session disappeared during completion");
+      const session = readSession(tx, row);
       const validated = Debrief.parse(debrief);
-      this.db.prepare("INSERT INTO debriefs(session_id,value) VALUES (?,?)").run(id, JSON.stringify(validated));
-      this.db.prepare("INSERT INTO pattern_updates(session_id,user_id,seen_at,value) VALUES (?,?,?,?)")
-        .run(id, session.userId, new Date().toISOString(), JSON.stringify(DeltaList.parse(deltas)));
-      this.db.prepare("UPDATE sessions SET status='ended',cleanup_needed=1,value=? WHERE id=?")
-        .run(JSON.stringify({
-          ...session, status: "ended", cleanupNeeded: true,
-          endedAt: Date.now(), endReason: EndReason.parse(reason),
-        }), id);
+      const parsedDeltas = DeltaList.parse(deltas);
+      const endReason = EndReason.parse(reason);
+      insertDebrief(tx, id, validated);
+      tx.insert(schema.patternUpdates).values({
+        sessionId: id, userId: session.userId, seenAt: new Date().toISOString(), applied: false,
+      }).run();
+      for (const [ordinal, delta] of parsedDeltas.entries()) {
+        tx.insert(schema.patternDeltas).values({ sessionId: id, ordinal, ...delta }).run();
+      }
+      tx.update(schema.sessions).set({
+        status: "ended", cleanupNeeded: true, endedAt: Date.now(), endReason,
+      }).where(eq(schema.sessions.id, id)).run();
       return validated;
-    })();
+    }, { behavior: "immediate" });
+  }
+  async learnedCourses(userId: string): Promise<Set<string>> {
+    const rows = this.db.selectDistinct({ courseId: schema.courseDefinitions.courseId }).from(schema.sessions)
+      .innerJoin(schema.debriefs, eq(schema.debriefs.sessionId, schema.sessions.id))
+      .innerJoin(schema.courseDefinitions, eq(schema.courseDefinitions.definitionId, schema.sessions.courseDefinitionId))
+      .where(and(eq(schema.sessions.userId, userId), eq(schema.sessions.status, "ended"), eq(schema.debriefs.won, true)))
+      .all();
+    return new Set(rows.map((row) => row.courseId));
+  }
+  async unlearnCourse(userId: string, courseId: string): Promise<void> {
+    this.db.transaction((tx) => {
+      const ownedSessions = tx.select({ id: schema.sessions.id }).from(schema.sessions)
+        .innerJoin(schema.courseDefinitions, eq(schema.courseDefinitions.definitionId, schema.sessions.courseDefinitionId))
+        .where(and(eq(schema.sessions.userId, userId), eq(schema.courseDefinitions.courseId, courseId)));
+      tx.delete(schema.debriefs).where(and(
+        eq(schema.debriefs.won, true), inArray(schema.debriefs.sessionId, ownedSessions),
+      )).run();
+    }, { behavior: "immediate" });
   }
   async cleaned(id: string) {
-    this.db.transaction(() => {
-      const current = StoredSession.parse(this.value(this.db.prepare("SELECT value FROM sessions WHERE id=?").get(id), StoredSession));
-      this.db.prepare("UPDATE sessions SET cleanup_needed=0,value=? WHERE id=?")
-        .run(JSON.stringify({ ...current, cleanupNeeded: false }), id);
-    })();
+    const rows = this.db.update(schema.sessions).set({ cleanupNeeded: false })
+      .where(eq(schema.sessions.id, id)).returning({ id: schema.sessions.id }).all();
+    if (!rows.length) throw new Error("Session disappeared during cleanup");
   }
   async recall(userId: string): Promise<Pattern[]> {
-    return this.db.prepare("SELECT category,count,last_seen AS lastSeen FROM patterns WHERE user_id=? ORDER BY count DESC, category")
-      .all(userId).map((row) => Pattern.parse(row));
+    return this.db.select({
+      category: schema.patterns.category, count: schema.patterns.count, lastSeen: schema.patterns.lastSeen,
+    }).from(schema.patterns).where(eq(schema.patterns.userId, userId))
+      .orderBy(desc(schema.patterns.count), asc(schema.patterns.category)).all().map((row) => Pattern.parse(row));
   }
   async applyPending() {
-    this.db.transaction(() => {
-      const rows = this.db.prepare("SELECT session_id,user_id,seen_at,value FROM pattern_updates WHERE applied=0").all();
-      for (const raw of rows) {
-        const row = z.object({
-          session_id: z.string(), user_id: z.string(), seen_at: z.string(), value: z.string(),
-        }).parse(raw);
-        for (const delta of DeltaList.parse(JSON.parse(row.value))) {
-          this.db.prepare(`INSERT INTO patterns(user_id,category,count,last_seen) VALUES (?,?,?,?)
-            ON CONFLICT(user_id,category) DO UPDATE SET count=count+excluded.count,
-            last_seen=MAX(last_seen,excluded.last_seen)`)
-            .run(row.user_id, delta.category, delta.count, row.seen_at);
+    this.db.transaction((tx) => {
+      const updates = tx.select().from(schema.patternUpdates).where(eq(schema.patternUpdates.applied, false)).all();
+      for (const update of updates) {
+        const deltas = tx.select({ category: schema.patternDeltas.category, count: schema.patternDeltas.count })
+          .from(schema.patternDeltas).where(eq(schema.patternDeltas.sessionId, update.sessionId))
+          .orderBy(asc(schema.patternDeltas.ordinal)).all();
+        for (const delta of DeltaList.parse(deltas)) {
+          tx.insert(schema.patterns).values({ userId: update.userId, ...delta, lastSeen: update.seenAt })
+            .onConflictDoUpdate({
+              target: [schema.patterns.userId, schema.patterns.category],
+              set: {
+                count: sql`${schema.patterns.count} + ${delta.count}`,
+                lastSeen: sql`MAX(${schema.patterns.lastSeen}, ${update.seenAt})`,
+              },
+            }).run();
         }
-        this.db.prepare("UPDATE pattern_updates SET applied=1 WHERE session_id=?").run(row.session_id);
+        tx.update(schema.patternUpdates).set({ applied: true })
+          .where(eq(schema.patternUpdates.sessionId, update.sessionId)).run();
       }
-    })();
+    }, { behavior: "immediate" });
   }
 }
