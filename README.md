@@ -2,6 +2,16 @@
 
 Rehearsal is a real-time voice AI English tutor for learners who understand English but hesitate in real conversations. The learner chooses a practical scene, speaks with an AI character through LiveKit, and receives quiet written coaching from a separate coach while the conversation continues.
 
+## Checking out the repository
+
+The walkthrough video `demo.mp4` (~118 MB) is stored with **Git LFS**, so `git-lfs` must be available before that file can be fetched. Set it up once per machine, before cloning:
+
+```sh
+# Install git-lfs: brew install git-lfs | apt-get install git-lfs | choco install git-lfs
+git lfs install
+git clone https://github.com/stkevintan/speak-demo.git
+```
+
 ## Get Started (Docker)
 Create the environment file and start the stack:
 
@@ -19,7 +29,6 @@ Open `http://localhost:5173`.
 - One-question onboarding for the learner's English level: A2, B1, or B2
 - Six scenario-based conversation courses, including refunds, interviews, parties, salary negotiation, and clinic visits
 - Free-form roleplay with a LiveKit voice agent
-- Character speech with interruption support currently under development
 - Live feedback cards with corrected English and optional Chinese explanations
 - Optional response suggestions when the learner pauses
 - Typed input fallback when a microphone is unavailable
@@ -151,4 +160,4 @@ workflow.md                  Development and AI-assisted workflow
 
 ## Submission notes
 
-The repository includes the required `PROMPT.md`, `workflow.md`, `.env.example`, source code, and documentation. A short interface and agent walkthrough video should be included with the final zip submission; it is not embedded in this repository.
+The repository includes the required `PROMPT.md`, `workflow.md`, `.env.example`, source code, and documentation. The interface and agent walkthrough video is committed as `demo.mp4` and stored with Git LFS, so fetch it with `git lfs pull` if it is not already present — see [Checking out the repository](#checking-out-the-repository).

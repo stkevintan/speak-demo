@@ -47,6 +47,13 @@ Create a contracts package that defines the interfaces between the web, control-
 
 Produce `packages/contracts` and the relevant `courses/*` materials.
 
+```mermaid
+flowchart LR
+  Z["src/zod/*.ts<br/>hand-written · source of truth"] -->|"codegen:schema"| S["schema/**.json"]
+  Z --> B["src/bin/*<br/>offline checks"]
+  S -->|"$ref"| O["openapi.yaml<br/>hand-written spec"]
+  O -->|"orval"| G["src/generated/api.ts"]
+```
 ### 6. Parallel Module Implementation
 Delegate the implementation to three sub-agents, each working in an isolated worktree. Implement the web, control-plane, and agent-worker modules in parallel while recursively following the **specification-driven, design-first, and human-gate** principles.
 

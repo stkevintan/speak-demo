@@ -1,0 +1,9 @@
+# Git LFS — large binary assets are stored out-of-band, with a small text
+# pointer committed in their place. Requires `git-lfs`; see the "Checking out
+# the repository" section in README.md.
+#
+# `filter=lfs` routes the file through the LFS clean/smudge filters,
+# `diff=lfs` and `merge=lfs` keep Git from trying to text-diff or merge it,
+# and `-text` disables end-of-line translation on a binary file.
+
+*.mp4 filter=lfs diff=lfs merge=lfs -text
