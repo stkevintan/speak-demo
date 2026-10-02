@@ -162,6 +162,37 @@ test("slow or failing coach never blocks the character and raw findings outlive 
   assert.equal(session.checkpoint.snapshot.cards.length, 2);
   assert.deepEqual(session.checkpoint.signal, { nice: 1, total: 3 });
   assert.equal(session.checkpoint.goalMet, false);
+  // Metrics count the admitted cards the learner saw, not the three raw findings.
+  assert.equal(session.checkpoint.metrics?.nice, 1);
+  assert.equal(session.checkpoint.metrics?.nit, 1);
+});
+
+test("metrics count offers, adopted taps and scene time, and ride the close record", async () => {
+  const model: TextModel = {
+    complete: async (prompt) => prompt.includes("Suggest up to three short responses")
+      ? '{"prompt":"Which one?","options":["One","Two"]}' : '{"findings":[]}',
+    close: async () => {},
+  };
+  const { session, store, clock } = await setup(model);
+  assert.deepEqual(session.checkpoint.metrics, { durationMs: 0, suggestionsOffered: 0, suggestionsAdopted: 0, nice: 0, nit: 0 });
+
+  clock.advance(1000);
+  await session.idle();
+  await settle();
+  assert.equal(session.checkpoint.metrics?.suggestionsOffered, 1);
+  assert.equal(session.checkpoint.metrics?.durationMs, 1000);
+
+  await session.command(command("suggestions.adopted", { optionIndex: 0 }, "tap-1"));
+  await session.command(command("suggestions.adopted", { optionIndex: 0 }, "tap-1"));
+  assert.equal(session.checkpoint.metrics?.suggestionsAdopted, 1);
+  // One offer is adopted once, so a tap on another option cannot outrun the offers made.
+  await session.command(command("suggestions.adopted", { optionIndex: 1 }, "tap-2"));
+  assert.equal(session.checkpoint.metrics?.suggestionsAdopted, 1);
+
+  clock.advance(500);
+  await session.end("user", "close-metrics");
+  assert.deepEqual(store.closed?.record.metrics,
+    { durationMs: 1500, suggestionsOffered: 1, suggestionsAdopted: 1, nice: 0, nit: 0 });
 });
 
 test("reconnect returns replay, or a complete replacement snapshot after trimming", async () => {

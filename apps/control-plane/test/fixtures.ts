@@ -3,10 +3,18 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { WorkerBootstrap, WorkerCheckpoint, CloseAck, type CloseRequest } from "@rehearsal/contracts";
+import { WorkerBootstrap, WorkerCheckpoint, CloseAck, emptyMetrics, type CloseRequest } from "@rehearsal/contracts";
 import { parseConfig } from "../src/config.js";
-import { LiveSessionStore, type LiveRead } from "../src/storage/ports.js";
+import { LiveSessionStore, type AttemptMetrics, type LiveRead } from "../src/storage/ports.js";
 import { RoomGateway } from "../src/livekit.js";
+
+/**
+ * A metrics row with everything zeroed. Tests that are not about scoring pass
+ * this so the numbers they assert on are the ones they set.
+ */
+export function attemptMetrics(overrides: Partial<AttemptMetrics> = {}): AttemptMetrics {
+  return { ...emptyMetrics(), learnerTurns: 0, ...overrides };
+}
 
 export async function fixtureConfig() {
   const dataDir = await mkdtemp(join(tmpdir(), "rehearsal-cp-test-"));
@@ -42,6 +50,7 @@ export class FakeLiveStore extends LiveSessionStore {
           preferences: { suggestions: input.profile.suggestions }, endReason: null,
         },
         findings: [], signal: { nice: 0, total: 0 }, goalMet: false, learnerTurns: 0,
+        metrics: emptyMetrics(),
       }),
     });
   }
@@ -68,7 +77,7 @@ export class FakeLiveStore extends LiveSessionStore {
         sessionId: id, courseId, transcript: cp.snapshot.transcript.map(({ turnId: _, source: __, ...turn }) => turn),
         findings: cp.findings.map(({ findingId: _, turnId: __, ...finding }) => finding),
         signal: cp.signal, goalMet: cp.goalMet, learnerTurns: cp.learnerTurns,
-        endReason: state.closeRequest.reason,
+        endReason: state.closeRequest.reason, metrics: cp.metrics,
       },
     });
     return state.ack;

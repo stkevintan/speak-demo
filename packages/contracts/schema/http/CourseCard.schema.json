@@ -113,6 +113,9 @@
         "on_level",
         "stretch"
       ]
+    },
+    "learned": {
+      "type": "boolean"
     }
   },
   "required": [
@@ -126,7 +129,8 @@
     "you",
     "setting",
     "edge",
-    "fit"
+    "fit",
+    "learned"
   ],
   "additionalProperties": false
 }

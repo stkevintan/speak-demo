@@ -89,6 +89,38 @@ recovery uses `network`, not an invented `error` enum member.
 - TTS failure emits an actionable alert and preserves generated text; cancellation
   is not reclassified as a TTS failure exposing an unplayed suffix.
 
+## Progress metrics
+
+`metrics` on `WorkerCheckpoint` is the only mutable progress state, and it exists
+so control-plane can report what an attempt scored without recounting anything.
+It is seeded by `emptyMetrics()` — on the control-plane-initialized empty
+checkpoint and again in the constructor — and it is carried across a handoff
+rather than recomputed.
+
+`durationMs` is **scene time, not wall-clock**. `account()` folds
+`now - lastTick` into the accumulator and advances `lastTick`, and both checkpoint
+write paths (`update()` and `emit()`) call it, so a gap while no worker held the
+lease is never counted as practice and the accumulator — not a start/end
+difference — is what survives a re-acquisition.
+
+The counters are incremented at the point the fact becomes true, never derived
+afterwards: `suggestionsOffered++` on the `suggestions` event,
+`suggestionsAdopted++` on the `suggestions.adopted` command, and `nice`/`nit`
+from admitted coach cards at the admission point, so a suppressed finding is not
+counted. `learnerTurns` is the checkpoint's own committed-turn count and stays
+separate from `metrics`; control-plane stores it in the same row. A
+`suggestions.adopted` command carries no minted ID of its own, so the command
+envelope's stable `id` dedupes a replay, and the handler additionally refuses to
+raise `suggestionsAdopted` past `suggestionsOffered` — a duplicated or
+out-of-order tap cannot break the contract's `adopted ≤ offered` refine.
+
+`finish()` copies `metrics` into the frozen record, and `store.freeze()` rebuilds
+that record from the stored checkpoint and asserts JSON equality against the
+`CloseAck` — so a metrics mismatch rejects the close instead of persisting a
+record that disagrees with the checkpoint. `metrics` is the last key in the
+frozen record. Control-plane owns the durable row; the worker never writes
+progress itself.
+
 ## Validation
 
 ```sh
@@ -100,7 +132,10 @@ pnpm --filter @rehearsal/agent-worker build
 The suite covers fake-clock silence/manual commitment, SDK played-prefix and
 typed-input behavior, lifecycle races, isolation/admission, replay, freeze, TTS
 fallback, and the Redis adapter's keys/arguments/preconditions using an injected
-mock. **It does not execute Lua in a Redis server.** Live Redis atomicity,
+mock. Progress metrics are asserted on both sides of the handoff: one test counts
+offers, adopted taps and scene time and follows them into the close record, and
+the freeze test rejects an acknowledgment whose metrics disagree with the
+checkpoint. **It does not execute Lua in a Redis server.** Live Redis atomicity,
 provider credentials/model availability, microphone capture, browser speaker
 latency, and real TTS word alignment still require a configured local integration
 environment. No Docker, Playwright, smoke scripts, provider calls, or shared live

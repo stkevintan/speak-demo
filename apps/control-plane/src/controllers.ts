@@ -1,13 +1,14 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import { z } from "zod";
 import {
-  Course, CourseCard, CourseId, Debrief, Profile, ProfilePatch, SessionId, SessionStart, StartSessionRequest,
+  Course, CourseCard, CourseId, Debrief, Profile, ProfilePatch, Progress, progressView, SessionId,
+  SessionStart, StartSessionRequest,
 } from "@rehearsal/contracts";
 import { AuthGuard, type AuthenticatedRequest } from "./auth.js";
 import { ProfileService } from "./memory.js";
 import { CourseService } from "./catalog.js";
 import { SessionService } from "./sessions.js";
-import { SessionRepo } from "./storage/ports.js";
+import { CourseRepo, SessionRepo } from "./storage/ports.js";
 import { apiError } from "./errors.js";
 
 function input<T>(schema: z.ZodType<T>, value: unknown): T {
@@ -49,6 +50,21 @@ export class CourseController {
     const courseId = input(CourseId, id);
     await this.courses.get(courseId);
     await this.sessions.unlearnCourse(request.userId, courseId);
+  }
+}
+
+@Controller("progress")
+@UseGuards(AuthGuard)
+export class ProgressController {
+  constructor(
+    @Inject(CourseRepo) private readonly catalog: CourseRepo,
+    @Inject(SessionRepo) private readonly sessions: SessionRepo,
+  ) {}
+  @Get()
+  async get(@Req() request: AuthenticatedRequest) {
+    // Derivation lives in the contract, so `web` and the API cannot disagree
+    // about what a goal state means; the controller only gathers the two inputs.
+    return Progress.parse(progressView(await this.catalog.listCourses(), await this.sessions.attempts(request.userId)));
   }
 }
 

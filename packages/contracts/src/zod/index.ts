@@ -7,6 +7,7 @@
 export * from "./palette.js";
 export * from "./course.js";
 export * from "./session.js";
+export * from "./progress.js";
 export * from "./events.js";
 export * from "./http.js";
 export * from "./worker.js";

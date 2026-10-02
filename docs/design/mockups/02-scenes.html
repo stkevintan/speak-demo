@@ -38,6 +38,7 @@
         Welcome back, Mai. Last time past tense slipped <b>3 times</b> —
         let's see if it sticks.
       </div>
+      <a class="score-box" href="#" id="overallBox"></a>
       <div class="switch-row" style="margin-left:auto">
         Chinese hints <span class="switch"></span>
       </div>
@@ -60,7 +61,40 @@
   document.getElementById('brandPip').innerHTML = pipSvg(34, 'idle');
   document.getElementById('memPip').innerHTML = pipSvg(48, 'write');
   document.getElementById('settings').innerHTML = icon('settings', 20, '#3D3659', 2.2);
-  document.getElementById('grid').innerHTML = SCENES.map(s => sceneCard(s)).join('');
-</script>
+
+  /* The same 0-100 rule as `attemptPoints()` in `packages/contracts`, kept in the
+     mockup so the recap bar and My progress cannot disagree. Only a scene with an
+     attempt has a score: a scene nobody opened shows no ring, not a zero. */
+  const POINTS = { goal: 55, time: 15, suggestions: 15, cards: 15 };
+  const TARGETS = { mins: 6, tips: 3, cards: 6 };
+  const share = (value, target) => Math.min(1, Math.max(0, value / target));
+  const attemptPoints = a => Math.round(
+    (a.ok === true ? POINTS.goal : 0) +
+    POINTS.time * share(a.mins, TARGETS.mins) +
+    POINTS.suggestions * share(a.tips, TARGETS.tips) +
+    POINTS.cards * share(a.nice + a.ups, TARGETS.cards));
+  /* The scored attempt: the winning one once the goal is met, otherwise the
+     latest. Same attempts My progress breaks down. */
+  const SCORES = {
+    refund: [ { ok: false, mins: 4, tips: 1, nice: 2, ups: 2 },
+              { ok: true,  mins: 6, tips: 3, nice: 2, ups: 4 } ],
+    flat: [ { ok: true,  mins: 5, tips: 2, nice: 3, ups: 3 } ],
+    interview: [ { ok: 'early', mins: 3, tips: 0, nice: 1, ups: 1 } ],
+    party: [ { ok: false, mins: 4, tips: 1, nice: 1, ups: 2 },
+             { ok: false, mins: 4, tips: 2, nice: 2, ups: 3 },
+             { ok: true,  mins: 5, tips: 3, nice: 3, ups: 5 } ],
+  };
+  const sceneScore = list => {
+    const win = list.findIndex(a => a.ok === true);
+    return attemptPoints(list[win === -1 ? list.length - 1 : win]);
+  };
+  const scores = new Map(Object.entries(SCORES).map(([id, list]) => [id, sceneScore(list)]));
+  const overall = Math.round([...scores.values()].reduce((a, b) => a + b, 0) / scores.size);
+  const met = Object.values(SCORES).filter(list => list.some(a => a.ok === true)).length;
+
+  document.getElementById('overallBox').innerHTML = scoreBox(
+    overall, 54, 6, 'Progress', `${met} of ${SCENES.length} goals met`);
+  document.getElementById('grid').innerHTML =
+    SCENES.map(s => sceneCard(s, { score: scores.has(s.id) ? scores.get(s.id) : null })).join('');</script>
 </body>
 </html>

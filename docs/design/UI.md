@@ -1,6 +1,6 @@
 # UI design
 
-Seven screens, one visual language. Every image below is a real render of the
+Eight screens, one visual language. Every image below is a real render of the
 mockup in [`mockups/`](mockups) at 1440×900 (exported at 2×); regenerate with
 `./mockups/build.sh`.
 
@@ -212,6 +212,57 @@ rather than stating it: `Aa` sits in `--ink` on each bright fill. Violet is
 asterisked because its bright tone fails AA both with white and with ink, so that
 one fill is darkened and carries white text.
 
+### 4.8 My progress
+
+![My progress](assets/08-progress.png)
+
+Answers the only question a returning learner actually has: *am I getting
+anywhere?* It answers with counts, a score, and quotes.
+
+- **Three counts, then one number.** Goals met, tried-but-unfinished, and not
+  started yet — the six scenes partitioned, so the three tiles always add up to
+  the whole catalogue. The headline score sits beside them, ringed, so the counts
+  and the number are read together and neither has to carry the screen alone.
+- **The score is 0-100 per attempt, and it is weighted so it cannot lie.**
+  Meeting the goal is worth 55 of the 100 and time, adopted suggestions and coach
+  cards share the other 45. That majority is the point: a win can never score
+  below 55 and a miss can never score above 45, so the number can never
+  contradict the *Goal met* badge beside it. An even split would let a long,
+  talkative failure outrank a short success — a number that lies, which
+  `PRODUCT.md` is right to call worse than no number.
+- **The ring carries the number, never a grade.** No A/B/C, no stars, no
+  "needs work". A ring is a quantity you filled, not a verdict on your English —
+  and it is drawn in the accent's `ink` tone, because the bright `fill` tones are
+  fills, never text.
+- **Nothing unstarted is scored.** A scene with no attempts shows no ring at all
+  rather than a 0, and a learner with no attempts sees no headline score. A zero
+  reads as a failure they never had.
+- **One row per scene, one badge per goal.** The goal is a boolean, exactly as
+  `PRODUCT.md` specifies, so the badge is *Goal met* / *Ended early* / *Not
+  started yet* — never a percentage of a goal. The scene's score is the scored
+  attempt's number, so it moves with the summary tiles and never invents a
+  "best" that would be a fourth opinion about the same history.
+- **Attempts are history, not a leaderboard.** A scene played three times shows
+  three chips, each with its own mark and its own score, so "still working on it"
+  reads as persistence instead of failure. An unfinished scene is *Ended early*,
+  not *Lost* — the last attempt's counts still count.
+- **The score is explained where it appears.** The panel footer states the
+  weighting in one line, and the attempt panel states the one invariant that
+  matters: meeting the goal is worth 55, so a win always outranks a miss however
+  long the miss ran. A number a learner cannot decode is a number they will
+  misread.
+- **Attempt by attempt** takes the multi-attempt scene apart, so the shape of the
+  improvement is visible: more suggestions used, more upgrades earned, and then
+  the goal flipping to met on attempt 3.
+- **Pick up where you left off** is the one primary button, and it returns to the
+  unfinished scene rather than to a menu. The panel says why — *"Elena never
+  heard the end of your story"* — and reassures that resuming is the same
+  attempt, not a restart.
+
+There is still no grade and no judgement of the learner's English anywhere on this
+screen. The score measures what they did in a scene — whether the goal landed and
+how much work went in — and the weighting is what keeps that distinction honest.
+
 ---
 
 ## 5. Component inventory
@@ -229,6 +280,11 @@ one fill is darkened and carries white text.
 | `level-card` | selected / unselected | Selection is a ring + tint, not just a border |
 | `avatar` | 6 styles × 3 moods | Inline SVG, parameterised by skin/hair/accent |
 | `pip` | 5 moods × any size | Inline SVG |
+| `count-tile` | teal / sun / sky | A count, never a rate; left bar carries the hue |
+| `scene-row` | — | Scene + attempt chips + goal badge, one line each |
+| `att` chip | met / missed / ended-early | Icon + `Attempt n`; grey is a normal state, not an error |
+| `goal-badge` | met / early / not-started | Same three states as `att`, with words |
+| `att-row` | met / missed / ended-early | One attempt expanded into its four counts |
 
 ---
 
@@ -260,8 +316,12 @@ one fill is darkened and carries white text.
 
 | Not present | Why |
 |---|---|
-| Any overall score or grade | Discouraging *and* unreliable — banned by `PRODUCT.md` |
-| A pronunciation score | Same, and it's the least actionable number available |
+| A grade, a letter, or a ranking | The score measures what you did in a scene, not how good your English is. Turning it into a grade is the verdict `PRODUCT.md` refuses |
+| A trend, a delta, or a "down 5" | The score is one attempt's number. Comparing attempts is the judgement we don't render, and "worse than last time" is the most demoralising sentence available |
+| A progress bar or streak counter | Turns practice into a chore you can fall behind on |
+| A per-goal percentage | The goal is a boolean; a 60%-met goal is a lie |
+| A score for an unstarted scene | A 0 reads as a failure the learner never had. Unstarted scenes show nothing |
+| A pronunciation score | Least actionable number available, and it grades the person rather than the attempt |
 | A big record button | Connecting *is* starting; there's no "press to begin" |
 | Waveforms in decibels | Technical, intimidating, and useless to the learner |
 | Red error text | A correction is an upgrade, not a mistake |

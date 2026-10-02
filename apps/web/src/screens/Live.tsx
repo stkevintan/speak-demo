@@ -108,6 +108,19 @@ export function Live({ profile }: { profile: Profile }) {
 
   const send = async () => { await sendText(draft); };
 
+  /**
+   * Tapping a suggested reply is both a reply and the one progress signal the
+   * learner gives on purpose, so the tap travels before the text: if the reply
+   * itself fails to send, the suggestion they took still counted.
+   */
+  const adopt = async (option: string, optionIndex: number) => {
+    const controller = live.current;
+    if (!controller || sendLock.current) return;
+    try { await controller.command({ type: "suggestions.adopted", payload: { optionIndex } }); }
+    catch { /* Best effort — the reply the learner chose matters more than the count. */ }
+    await sendText(option);
+  };
+
   const setSuggestions = async (suggestions: boolean) => {
     const controller = live.current;
     if (!controller || preferenceLock.current) return;
@@ -249,7 +262,7 @@ export function Live({ profile }: { profile: Profile }) {
             {suggestions && <section className="rounded-[22px] border-l-[5px] border-violet bg-violet-soft/40 p-4">
               <h3 className="flex items-center gap-2 text-xs font-black uppercase text-violet-ink"><Sparkles size={16} />Try a reply</h3>
               <p className="mt-2 text-sm font-semibold text-body">{suggestions.prompt}</p>
-              {suggestions.options.map((option, i) => <button key={i} disabled={!available || sending} className="mt-2 block min-h-11 w-full rounded-xl bg-white p-3 text-left text-sm font-bold leading-relaxed text-body disabled:opacity-60" onClick={() => { void sendText(option); }}>{option}</button>)}
+              {suggestions.options.map((option, i) => <button key={i} disabled={!available || sending} className="mt-2 block min-h-11 w-full rounded-xl bg-white p-3 text-left text-sm font-bold leading-relaxed text-body disabled:opacity-60" onClick={() => { void adopt(option, i); }}>{option}</button>)}
               <p className="mt-3 text-xs text-muted">Tap a reply to send it, or say it your own way.</p>
             </section>}
           </div>

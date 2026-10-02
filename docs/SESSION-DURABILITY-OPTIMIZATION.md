@@ -128,32 +128,74 @@ The existing bounded `events` stream remains optimized for browser replay (`MAX_
 
 ## Recommended implementation phases
 
-### Phase 1: durable transcript boundary
+The work should be incremental. Each phase must leave the existing product usable and independently testable.
 
-- Add a durable session-event repository behind `StorageModule`.
-- Persist transcript events with unique event IDs and `(sessionId, seq)` constraints.
-- Keep the current Redis stream for browser replay.
-- Add restart and duplicate-write tests.
+### Phase 0: establish invariants and measurements
 
-### Phase 2: compact projection
+1. Record current checkpoint size, checkpoint write latency, event append latency, close-request latency, and recovery duration.
+2. Add structured metrics for session ID, event sequence, worker epoch, projection lag, and retry counts. Never log transcript contents.
+3. Write contract tests for duplicate event IDs, sequence gaps, stale epochs, duplicate close commands, and close acknowledgement idempotency.
+4. Define retention, deletion, encryption, and access-control requirements for transcript data before making it durable.
 
-- Remove the full transcript from hot checkpoint writes.
-- Add `lastAppliedSeq`, count, and hash to the checkpoint contract.
-- Project durable transcript events into the current session snapshot.
-- Force and validate a final projection before close acknowledgement.
+**Exit condition:** baseline dashboards/tests exist and the current Redis-only behavior is documented.
 
-### Phase 3: command stream
+### Phase 1: create the durable event boundary
 
-- Add `session:{id}:commands` with a consumer group.
-- Publish a `session.close` notification after the first-wins close-request record succeeds.
-- ACK only after the worker has completed the fenced close operation.
-- Add pending-entry reclaim and retain the polling fallback.
+1. Add a `SessionEventRepo` port in the control-plane storage layer.
+2. Add a durable event table/store with unique `(sessionId, seq)` and `eventId` constraints.
+3. Persist transcript events before publishing them to Redis or the browser.
+4. Make retries idempotent: an already persisted event returns success without duplicating it.
+5. Keep the existing Redis `events` stream as the bounded browser-replay cache.
+6. Add restart, duplicate-write, failure-before-publish, and failure-after-persist tests.
 
-### Phase 4: scale-out storage
+**Exit condition:** a Redis restart or worker restart cannot lose an event that was acknowledged as durable.
 
-- Move durable session events and materialized views to PostgreSQL when SQLite single-writer limits are reached.
-- Consider Kafka only when event throughput, retention, independent consumers, or cross-service replay justify its operational cost.
-- Keep Redis for active-session coordination, leases, fencing, and low-latency notifications.
+### Phase 2: introduce the materialized projection
+
+1. Define a projector that consumes durable events in sequence order.
+2. Rebuild the current public snapshot, findings, goal state, and counters from events.
+3. Add `lastAppliedSeq`, transcript count, and transcript hash to the checkpoint.
+4. Compare the projected high-watermark with the durable event high-watermark and expose projection lag.
+5. Keep the full transcript out of normal checkpoint writes; retain it only in durable events.
+6. Add deterministic replay tests: checkpoint at N plus events N+1..H must equal a fresh projection through H.
+
+**Exit condition:** checkpoint payload size is approximately constant as transcript length grows, and recovery produces the same state as normal processing.
+
+### Phase 3: migrate recovery and close finalization
+
+1. Load the compact checkpoint during recovery.
+2. Replay the durable event suffix after `lastAppliedSeq`.
+3. Validate consecutive sequences, event IDs, transcript count/hash, and worker epoch.
+4. Force a final event append and projection before producing `CloseAck`.
+5. Persist the immutable debrief before deleting Redis/LiveKit state.
+6. Make cleanup retryable and independent from the durable debrief boundary.
+7. Test worker crash, stale-worker writes, missing suffix, corrupt checkpoint, repeated finalization, and cleanup retry.
+
+**Exit condition:** a replacement or recovery path can reconstruct the latest valid conversation without an empty fabricated transcript, and close is idempotent.
+
+### Phase 4: replace close polling with Redis Stream notification
+
+1. Create a separate `session:{id}:commands` Redis Stream and consumer group; do not reuse the browser replay stream.
+2. Keep the first-wins `close-request` record as the durable command/idempotency source of truth.
+3. When the close request is created, append a `session.close` notification containing the stable `commandId`.
+4. Have the worker block on `XREADGROUP` instead of relying on frequent polling.
+5. On receipt, reread and validate the close-request record, session ID, reason, lease, and epoch.
+6. ACK the stream entry only after the fenced close operation and durable finalization boundary succeed.
+7. Use `XAUTOCLAIM` to reclaim pending commands after worker failure.
+8. Retain heartbeat/poll fallback for missed notifications and Redis reconnects.
+9. Measure command-to-observation latency and redelivery rate.
+
+**Exit condition:** normal close notification latency is below the old polling interval while duplicate delivery and missed notifications remain safe.
+
+### Phase 5: scale the storage implementation
+
+1. Move durable events and materialized views from SQLite to PostgreSQL when single-writer limits are reached.
+2. Add indexed queries by `(sessionId, seq)` and tenant/user retention boundaries.
+3. Partition or archive old events according to the retention policy.
+4. Introduce Kafka only if throughput, retention, independent consumers, or cross-service replay justify operating it.
+5. Keep Redis for active-session coordination, leases, fencing, bounded replay, and low-latency command notification.
+
+**Exit condition:** multiple control-plane replicas and worker fleets can reconcile sessions without process-local state or conflicting ownership.
 
 ## Measurements
 
@@ -169,6 +211,40 @@ Track these metrics before and after migration:
 - transcript durability failures and retry counts.
 
 Success means checkpoint writes remain approximately constant-size, close notification latency falls below the polling interval, and recovery time remains bounded by checkpoint age rather than total transcript length.
+
+## Coordination service extraction
+
+A coordination service is a useful code boundary even before it becomes a separately deployed service. It encapsulates Redis key naming, Lua scripts, streams, leases, fencing, checkpoints, close acknowledgements, and reconciliation behind semantic session operations.
+
+```text
+Control plane ─┐
+                ├─ semantic coordination API ─> Redis + durable storage
+Agent worker ───┘
+
+Coordination service
+  ├─ acquire/renew/release worker lease
+  ├─ append durable event and publish live event
+  ├─ read/write compact checkpoint
+  ├─ request and observe close
+  ├─ freeze final record
+  ├─ reconcile expired or incomplete sessions
+  └─ retry post-finalization cleanup
+```
+
+The service can be stateless at the process level: every replica reads authoritative state from Redis and durable storage, and no session truth lives only in memory. Its operations must be idempotent and preserve worker epoch fencing. Reconciliation is one logical role, not necessarily one permanent process.
+
+Use a single logical reconciliation leader initially. A short-lived leader lease gives one replica responsibility for global scans while standby replicas can take over after lease expiry. If the workload later exceeds one loop's capacity, replace the global scan with session claims or deterministic shard ownership. Those claims are coordination primitives, not another service layered above the reconciler.
+
+Prefer this extraction path:
+
+```text
+Phase A: CP + worker -> shared coordination module -> Redis
+Phase B: CP + worker -> coordination service -> Redis + durable storage
+```
+
+Phase A keeps local calls fast and avoids adding a network failure boundary. The semantic ports and tests should be identical in both phases, so Phase B changes deployment rather than domain behavior. Do not put audio, ASR, LLM, or TTS work behind this API; it owns authoritative session mutations and recovery only.
+
+The coordination service is not etcd. It does not provide general-purpose consensus or become the source of all cluster metadata. Redis or the durable database supplies the storage/lease primitive; the coordination layer applies product-specific session semantics. Use a stronger system such as etcd only if broader strongly consistent cluster coordination is required.
 
 ## Decision summary
 

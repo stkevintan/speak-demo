@@ -176,12 +176,12 @@ return 1`, {
       if (!checkpoint || ack.sessionId !== sessionId || checkpoint.workerId !== ack.workerId || checkpoint.epoch !== ack.epoch) {
         throw new Error("Invalid frozen checkpoint");
       }
-      const { snapshot, findings, signal, goalMet, learnerTurns } = checkpoint;
+      const { snapshot, findings, signal, goalMet, learnerTurns, metrics } = checkpoint;
       const record = {
         sessionId, courseId: (await read(keys.bootstrap, WorkerBootstrap.parse))?.course.id,
         transcript: snapshot.transcript.map(({ role, text, tStart, tEnd }) => ({ role, text, tStart, tEnd })),
         findings: findings.map(({ findingId: _findingId, turnId: _turnId, ...card }) => card),
-        signal, goalMet, learnerTurns, endReason: snapshot.endReason,
+        signal, goalMet, learnerTurns, endReason: snapshot.endReason, metrics,
       };
       if (JSON.stringify(record) !== JSON.stringify(ack.record)) throw new Error("Close record differs from checkpoint");
       await client.eval(freezeScript, {

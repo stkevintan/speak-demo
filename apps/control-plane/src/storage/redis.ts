@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { createClient } from "redis";
 import { z } from "zod";
 import {
-  CloseAck, CloseRequest, SessionRecord, WorkerBootstrap, WorkerCheckpoint,
+  CloseAck, CloseRequest, emptyMetrics, SessionRecord, WorkerBootstrap, WorkerCheckpoint,
   WorkerLease, sessionKeys,
 } from "@rehearsal/contracts";
 import { CONFIG, type AppConfig } from "../config.js";
@@ -56,6 +56,9 @@ export class RedisLiveSessionStore extends LiveSessionStore {
         preferences: { suggestions: bootstrap.profile.suggestions }, endReason: null,
       },
       findings: [], signal: { nice: 0, total: 0 }, goalMet: false, learnerTurns: 0,
+      // The worker counts up from a defined zero; the counters live on the
+      // checkpoint so `freeze()` can rebuild the same record the live path sent.
+      metrics: emptyMetrics(),
     });
     const result = await this.client.eval(INITIALIZE, {
       keys: [keys.bootstrap, keys.checkpoint],
@@ -104,6 +107,7 @@ export class RedisLiveSessionStore extends LiveSessionStore {
       findings: checkpoint.findings.map(({ findingId: _findingId, turnId: _turnId, ...finding }) => finding),
       signal: checkpoint.signal, goalMet: checkpoint.goalMet,
       learnerTurns: checkpoint.learnerTurns, endReason: request.reason,
+      metrics: checkpoint.metrics,
     });
     const ack = CloseAck.parse({
       v: 1, sessionId: id, commandId: request.commandId, workerId: checkpoint.workerId,

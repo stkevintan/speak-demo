@@ -4,6 +4,7 @@ const ICON_PATHS = {
   target:
     '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1.4" fill="CUR"/>',
   check: '<path d="M4.5 12.6 l5 5 L19.5 6.8"/>',
+  cross: '<path d="M7.5 7.5 L16.5 16.5"/><path d="M16.5 7.5 L7.5 16.5"/>',
   warn: '<path d="M12 4.2 L21 19.5 H3 Z"/><path d="M12 10 v4"/><circle cx="12" cy="16.8" r=".9" fill="CUR"/>',
   sparkle:
     '<path d="M12 3.5 l2.2 5.6 5.6 2.2 -5.6 2.2 -2.2 5.6 -2.2 -5.6 -5.6 -2.2 5.6 -2.2 z"/>',
@@ -39,4 +40,51 @@ function icon(name, size = 20, color = "currentColor", sw = 2) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"
     stroke="${color}" stroke-width="${sw}" stroke-linecap="round"
     stroke-linejoin="round" style="flex:none">${body}</svg>`;
+}
+
+/* The 0-100 progress ring, mirroring `ScoreRing` in `apps/web/src/components/ui.tsx`.
+   Both the arc and the number are the accent's `ink` tone: the bright `fill`
+   tones are fills, never text, and a sun arc on white fails even the 3:1 a
+   graphic needs. It is deliberately not a grade — no letter, no stars, no delta. */
+const ACCENT_TONES = {
+  violet: { fill: '#7c5cff', soft: '#ece7ff', ink: '#5b3fd6' },
+  coral: { fill: '#ff6b4a', soft: '#ffe7e0', ink: '#b23a1a' },
+  teal: { fill: '#12c8a0', soft: '#d9f7ef', ink: '#08735a' },
+  sun: { fill: '#ffc93c', soft: '#fff3d4', ink: '#8a6013' },
+  sky: { fill: '#3dbdff', soft: '#ddf1ff', ink: '#1a6a99' },
+  pink: { fill: '#ff7ac6', soft: '#ffe4f3', ink: '#a8347f' },
+};
+
+function scoreRing(points, size, stroke, tone) {
+  const t = typeof tone === 'string' ? ACCENT_TONES[tone] : tone;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const reached = Math.min(100, Math.max(0, points)) / 100;
+  return `<span class="score-ring" role="img" aria-label="Score: ${points} of 100"
+    style="width:${size}px;height:${size}px">
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">
+      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${t.soft}" stroke-width="${stroke}"/>
+      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${t.ink}" stroke-width="${stroke}"
+        stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - reached)}"/>
+    </svg>
+    <span class="n" style="color:${t.ink};font-size:${Math.round(size * 0.36)}px">${points}</span>
+  </span>`;
+}
+
+/* The ring plus its caption — the shape both the recap bar and a scene card use. */
+function scorePill(points, tone, caption = 'Score', size = 30) {
+  const t = typeof tone === 'string' ? ACCENT_TONES[tone] : tone;
+  return `<span class="score-pill" style="background:${t.soft}">
+    ${scoreRing(points, size, 4, t)}
+    <span class="cap" style="color:${t.ink}">${caption}</span>
+  </span>`;
+}
+
+/* The white box the headline ring sits in, on the recap bar and in the hero. */
+function scoreBox(points, size, stroke, caption, sub, tone = 'violet') {
+  const t = typeof tone === 'string' ? ACCENT_TONES[tone] : tone;
+  return `<span class="score-box">
+    ${scoreRing(points, size, stroke, t)}
+    <span><span class="cap">${caption}</span><span class="sub" style="display:block">${sub}</span></span>
+  </span>`;
 }

@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import {
-  CloseAck, DurableServerEvent, WorkerCheckpoint, type ClientCommand, type CloseRequest,
-  type EndReason, type ServerEvent, type TranscriptEntry, type WorkerBootstrap, type WorkerLease,
+  CloseAck, DurableServerEvent, WorkerCheckpoint, emptyMetrics, type ClientCommand, type CloseRequest,
+  type EndReason, type ServerEvent, type SessionMetrics, type TranscriptEntry, type WorkerBootstrap,
+  type WorkerLease,
 } from "@rehearsal/contracts";
 import { Coach } from "./coach.js";
 import { convergence, type SceneOutcome } from "./character.js";
@@ -20,6 +21,16 @@ export interface VoicePort {
   reengage(): void;
 }
 
+/**
+ * The mutable metrics of a checkpoint about to be written. `metrics` is optional
+ * on `WorkerCheckpoint` only so a checkpoint written before this counter existed
+ * still parses; every writer goes through here so a reader never sees it absent.
+ */
+function metricsOf(next: WorkerCheckpoint): SessionMetrics {
+  next.metrics ??= emptyMetrics();
+  return next.metrics;
+}
+
 export class Session {
   private current: WorkerCheckpoint;
   private tail: Promise<unknown> = Promise.resolve();
@@ -32,6 +43,8 @@ export class Session {
   private failed = false;
   private endPromise: Promise<void> | undefined;
   private readonly startedAt: number;
+  /** Last instant folded into `metrics.durationMs`; the scene clock's high-water mark. */
+  private lastTick: number;
   private idleSince = 0;
   private offeredSuggestions = false;
   private reengaged = false;
@@ -53,11 +66,13 @@ export class Session {
     private readonly time: Timer = clock,
   ) {
     this.startedAt = time.now();
+    this.lastTick = this.startedAt;
     this.current = WorkerCheckpoint.parse({
       v: 1, sessionId: bootstrap.sessionId, workerId: lease.workerId, epoch: lease.epoch, seq: 0,
       snapshot: { state: "idle", learnerTurn: null, transcript: [], cards: [], suggestions: null,
         preferences: { suggestions: bootstrap.profile.suggestions }, endReason: null },
       findings: [], signal: { nice: 0, total: 0 }, goalMet: false, learnerTurns: 0,
+      metrics: emptyMetrics(),
     });
     this.detector = new TurnDetector(patienceMs, time, randomUUID, () => {
       void this.enqueue(async () => {
@@ -83,7 +98,9 @@ export class Session {
       || initial.findings.length || initial.learnerTurns || initial.epoch >= this.lease.epoch) {
       throw new Error("Existing session requires control-plane recovery");
     }
-    this.current = { ...initial, workerId: this.lease.workerId, epoch: this.lease.epoch };
+    this.current = { ...initial, workerId: this.lease.workerId, epoch: this.lease.epoch,
+      metrics: initial.metrics ?? emptyMetrics() };
+    this.lastTick = this.time.now();
     await this.store.write(this.current, 0);
   }
 
@@ -233,6 +250,15 @@ export class Session {
           await this.voice.interrupt();
           await this.stateNow("listening");
           return;
+        case "suggestions.adopted":
+          // One offer is adopted once: the offers already made are the ceiling, so a
+          // replayed tap cannot push the count past `suggestionsOffered` (§6.3).
+          await this.emit({ type: "command.ack", payload: { commandId: command.id, status: "accepted" } },
+            (next) => {
+              const metrics = metricsOf(next);
+              if (metrics.suggestionsAdopted < metrics.suggestionsOffered) metrics.suggestionsAdopted++;
+            });
+          return;
         case "preferences.update":
           await this.emit({ type: "command.ack", payload: { commandId: command.id, status: "accepted" } },
             (next) => {
@@ -274,7 +300,7 @@ export class Session {
           AbortSignal.any([this.abortCoach.signal, AbortSignal.timeout(5000)]));
         await this.enqueue(async () => {
           if (!this.ending && generation === this.generation && this.current.snapshot.preferences.suggestions && !this.detector.hasPending) {
-            await this.emit({ type: "suggestions", payload });
+            await this.emit({ type: "suggestions", payload }, (next) => { metricsOf(next).suggestionsOffered++; });
           }
         });
       } catch (error) {
@@ -308,7 +334,7 @@ export class Session {
       await this.enqueue(async () => {
         if (this.failed) throw new Error("Cannot finalize failed storage");
         await this.emit({ type: "session.ended", payload: { reason: canonical.reason } });
-        const { snapshot, findings, signal, goalMet, learnerTurns } = this.current;
+        const { snapshot, findings, signal, goalMet, learnerTurns, metrics } = this.current;
         const ack = CloseAck.parse({
           v: 1, sessionId: this.bootstrap.sessionId, commandId: canonical.commandId,
           workerId: this.lease.workerId, epoch: this.lease.epoch, finalSeq: this.current.seq,
@@ -317,6 +343,9 @@ export class Session {
             transcript: snapshot.transcript.map(({ role, text, tStart, tEnd }) => ({ role, text, tStart, tEnd })),
             findings: findings.map(({ findingId: _findingId, turnId: _turnId, ...card }) => card),
             signal, goalMet, learnerTurns, endReason: canonical.reason,
+            // Last key: `store.freeze()` rebuilds this record from the checkpoint and
+            // compares the two as JSON, so the order has to match `SessionRecord`.
+            metrics: metrics ?? emptyMetrics(),
           },
         });
         await this.store.freeze(ack);
@@ -357,7 +386,10 @@ export class Session {
             next.signal.total += cards.length;
           });
           for (const card of cards) {
-            if (this.coach.admit(card, turnNumber)) await this.emit({ type: "coach.card", payload: card });
+            if (this.coach.admit(card, turnNumber)) {
+              await this.emit({ type: "coach.card", payload: card },
+                (next) => { const metrics = metricsOf(next); if (card.kind === "nice") metrics.nice++; else metrics.nit++; });
+            }
           }
         });
       } catch (error) {
@@ -393,8 +425,23 @@ export class Session {
     await this.deliver(replay(this.current, await this.store.events(), commandId, afterSeq));
   }
 
+  /**
+   * Folds the time since the last write into `metrics.durationMs` (§5.8: scene
+   * time, so a gap while no worker held the lease is not counted as practice).
+   * Every checkpoint write goes through this, because the accumulator — not a
+   * wall-clock difference — is what survives a worker handoff.
+   */
+  private account(next: WorkerCheckpoint): SessionMetrics {
+    const now = this.time.now();
+    const metrics = metricsOf(next);
+    metrics.durationMs += Math.max(0, now - this.lastTick);
+    this.lastTick = now;
+    return metrics;
+  }
+
   private async update(mutate: (next: WorkerCheckpoint) => void): Promise<void> {
     const next = structuredClone(this.current);
+    this.account(next);
     mutate(next);
     await this.store.write(next, this.current.seq);
     this.current = next;
@@ -405,6 +452,7 @@ export class Session {
       id: randomUUID(), seq: this.current.seq + 1, ...body });
     const next = structuredClone(this.current);
     next.seq = event.seq;
+    this.account(next);
     mutate?.(next);
     switch (event.type) {
       case "agent.state": next.snapshot.state = event.payload.state; break;

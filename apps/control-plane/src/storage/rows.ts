@@ -3,7 +3,7 @@ import { asc, eq } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { z } from "zod";
 import { Course, Debrief } from "@rehearsal/contracts";
-import { StoredSession } from "./ports.js";
+import { StoredSession, AttemptMetrics } from "./ports.js";
 import * as schema from "./schema.js";
 
 type Writer = Pick<BetterSQLite3Database<typeof schema>, "select" | "insert">;
@@ -100,6 +100,15 @@ export function insertDebrief(db: Writer, sessionId: string, value: Debrief) {
   for (const [ordinal, correction] of value.corrections.entries()) {
     db.insert(schema.debriefCorrections).values({ sessionId, ordinal, ...correction }).run();
   }
+}
+
+export function insertMetrics(db: Writer, sessionId: string, value: AttemptMetrics) {
+  const metrics = AttemptMetrics.parse(value);
+  db.insert(schema.sessionMetrics).values({
+    sessionId, learnerTurns: metrics.learnerTurns, durationMs: metrics.durationMs,
+    suggestionsOffered: metrics.suggestionsOffered, suggestionsAdopted: metrics.suggestionsAdopted,
+    niceCount: metrics.nice, nitCount: metrics.nit,
+  }).run();
 }
 
 export function readDebrief(db: Writer, row: typeof schema.debriefs.$inferSelect): Debrief {

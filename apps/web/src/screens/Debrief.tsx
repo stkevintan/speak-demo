@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { Check, Heart, Sparkles, Target } from "lucide-react";
 import type { Profile } from "@rehearsal/contracts";
 import { ApiError } from "@rehearsal/contracts/fetcher";
@@ -39,7 +39,7 @@ export function DebriefScreen({ profile }: { profile: Profile }) {
     } finally { starting.current = false; }
   };
   return (
-    <Shell header={<BackToScenes />}>
+    <Shell header={<><Link className="button button-secondary" to="/progress"><Target size={18} />My progress</Link><BackToScenes /></>}>
       {query.isPending && <Busy>Getting your feedback...</Busy>}
       {pending && (
         <section className="panel mx-auto mt-10 max-w-2xl">

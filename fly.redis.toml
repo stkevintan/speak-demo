@@ -1,0 +1,30 @@
+# OPTIONAL: a self-hosted Redis on the private network.
+#
+# Prefer `fly redis create` (Upstash-backed, managed, off your 6PN network) --
+# see deploy/fly/README.md. This config exists for when you would rather keep
+# the cache inside the organization's own network, or want to avoid the
+# per-request Redis billing.
+#
+#   fly deploy --config fly.redis.toml --ha=false
+#
+# SECURITY: the instance below is unauthenticated. It has no public IP, so only
+# Machines in this Fly organization can reach it -- but that means every app in
+# the organization can read live session data. Acceptable for a demo, not for
+# anything holding real user data.
+app = "rehearsal-redis"
+primary_region = "sin"
+
+[build]
+  image = "redis:7.4-alpine"
+
+[processes]
+  redis = "redis-server --appendonly yes --bind 0.0.0.0 --protected-mode no"
+
+# Append-only persistence, so a restart does not drop in-flight session state.
+[mounts]
+  source = "rehearsal_redis_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

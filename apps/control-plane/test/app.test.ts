@@ -4,7 +4,7 @@ import test from "node:test";
 import { Test } from "@nestjs/testing";
 import { JwtService } from "@nestjs/jwt";
 import request from "supertest";
-import { Profile, CourseCard, Debrief, SessionStart, AUTH_COOKIE_NAME } from "@rehearsal/contracts";
+import { Profile, CourseCard, Debrief, Progress, SessionStart, AUTH_COOKIE_NAME } from "@rehearsal/contracts";
 import { z } from "zod";
 import { AppModule, configureApp } from "../src/app.module.js";
 import { LiveSessionStore, SessionRepo } from "../src/storage/ports.js";
@@ -90,6 +90,28 @@ test("Nest routes enforce contracts, auth, ownership, onboarding and durable com
     .set("Cookie", cookie).set("Origin", origin).expect(200);
   const learned = await request(server).get("/api/courses").set("Cookie", cookie).expect(200);
   assert.equal(z.array(CourseCard).parse(learned.body).find((course) => course.id === "refund")?.learned, true);
+  const progress = Progress.parse((await request(server).get("/api/progress").set("Cookie", cookie).expect(200)).body);
+  assert.deepEqual(progress.totals, { met: 1, unfinished: 0, notStarted: 5 });
+  const refund = progress.goals.find((goal) => goal.courseId === "refund");
+  assert.ok(refund);
+  assert.equal(refund.state, "met");
+  assert.equal(refund.attempts, 2);
+  assert.equal(refund.wonOnAttempt, 2);
+  assert.equal(refund.score?.sessionId, won.sessionId);
+  assert.deepEqual(refund.history.map(({ attempt, won: win, mark }) => ({ attempt, win, mark })), [
+    { attempt: 1, win: false, mark: "ended_early" },
+    { attempt: 2, win: true, mark: "met" },
+  ]);
+  // Metrics travel with the attempt even though no worker counted any.
+  assert.deepEqual(refund.history.map(({ learnerTurns, suggestionsOffered, nice, nit }) => ({
+    learnerTurns, suggestionsOffered, nice, nit,
+  })), [{ learnerTurns: 0, suggestionsOffered: 0, nice: 0, nit: 0 }, { learnerTurns: 0, suggestionsOffered: 0, nice: 0, nit: 0 }]);
+  // Met goals sort last; a course nobody touched is a goal, not a gap.
+  assert.equal(progress.goals[progress.goals.length - 1]?.courseId, "refund");
+  assert.equal(progress.goals.filter((goal) => goal.state === "not_started").length, 5);
+  const stranger = Progress.parse((await request(server).get("/api/progress")
+    .set("Cookie", `${AUTH_COOKIE_NAME}=${foreign}`).expect(200)).body);
+  assert.deepEqual(stranger.totals, { met: 0, unfinished: 0, notStarted: 6 });
   await request(server).post("/api/courses/refund/unlearn").set("Cookie", `${AUTH_COOKIE_NAME}=${foreign}`)
     .set("Origin", origin).expect(204);
   await request(server).get(`/api/sessions/${won.sessionId}/debrief`).set("Cookie", cookie).expect(200);
@@ -97,6 +119,14 @@ test("Nest routes enforce contracts, auth, ownership, onboarding and durable com
   await request(server).post("/api/courses/refund/unlearn").set("Cookie", cookie).set("Origin", origin).expect(204);
   const unlearned = await request(server).get("/api/courses").set("Cookie", cookie).expect(200);
   assert.equal(z.array(CourseCard).parse(unlearned.body).find((course) => course.id === "refund")?.learned, false);
+  // Withdrawing the verdict keeps the attempt but drops the goal back to unfinished.
+  const withdrawn = Progress.parse((await request(server).get("/api/progress").set("Cookie", cookie).expect(200)).body);
+  assert.deepEqual(withdrawn.totals, { met: 0, unfinished: 1, notStarted: 5 });
+  const reverted = withdrawn.goals.find((goal) => goal.courseId === "refund");
+  assert.equal(reverted?.state, "unfinished");
+  assert.equal(reverted?.wonOnAttempt, null);
+  assert.equal(reverted?.score?.sessionId, won.sessionId);
+  assert.equal(reverted?.history[1]?.won, false);
   await request(server).get(`/api/sessions/${won.sessionId}/debrief`).set("Cookie", cookie).expect(409);
   await request(server).get(`/api/sessions/${sessionId}/debrief`).set("Cookie", cookie).expect(200);
   await request(server).post("/api/courses/missing/unlearn").set("Cookie", cookie).set("Origin", origin).expect(404);

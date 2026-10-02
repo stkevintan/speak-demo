@@ -58,14 +58,17 @@ test("close adapter rejects foreign or nonmatching record before atomic freeze",
   const checkpoint = { ...initialCheckpoint(), workerId: lease.workerId, epoch: lease.epoch, seq: 2 };
   checkpoint.snapshot.state = "ended";
   checkpoint.snapshot.endReason = "user";
+  checkpoint.metrics = { durationMs: 4200, suggestionsOffered: 1, suggestionsAdopted: 1, nice: 2, nit: 1 };
   fixture.data.set(fixture.keys.checkpoint, JSON.stringify(checkpoint));
   const ack = CloseAck.parse({
     v: 1, sessionId: bootstrap.sessionId, commandId: "close", workerId: lease.workerId, epoch: lease.epoch,
     finalSeq: 2, record: { sessionId: bootstrap.sessionId, courseId: bootstrap.course.id, transcript: [],
-      findings: [], signal: { nice: 0, total: 0 }, goalMet: false, learnerTurns: 0, endReason: "user" },
+      findings: [], signal: { nice: 0, total: 0 }, goalMet: false, learnerTurns: 0, endReason: "user",
+      metrics: { durationMs: 4200, suggestionsOffered: 1, suggestionsAdopted: 1, nice: 2, nit: 1 } },
   });
   await assert.rejects(fixture.store.freeze({ ...ack, epoch: 1 }));
   await assert.rejects(fixture.store.freeze({ ...ack, record: { ...ack.record, goalMet: true } }));
+  await assert.rejects(fixture.store.freeze({ ...ack, record: { ...ack.record, metrics: { ...ack.record.metrics!, durationMs: 1 } } }));
   assert.equal(fixture.evaluations.length, 0);
   await fixture.store.freeze(ack);
   const script = fixture.evaluations[0]!.script;

@@ -1,8 +1,8 @@
 import type Database from "better-sqlite3";
 import { z } from "zod";
 
-export const DATABASE_FILENAME = "rehearsal-v2.sqlite";
-export const SCHEMA_VERSION = 2;
+export const DATABASE_FILENAME = "rehearsal-v3.sqlite";
+export const SCHEMA_VERSION = 3;
 
 // Embedded DDL travels with both tsx and compiled JS; no cwd-relative SQL assets.
 const CREATE_SCHEMA = `
@@ -71,6 +71,15 @@ CREATE TABLE debrief_corrections (
   ordinal INTEGER NOT NULL CHECK(ordinal >= 0), category TEXT NOT NULL,
   quote TEXT NOT NULL, better TEXT NOT NULL, en TEXT NOT NULL, zh TEXT NOT NULL,
   PRIMARY KEY(session_id,ordinal)
+);
+CREATE TABLE session_metrics (
+  session_id TEXT PRIMARY KEY NOT NULL REFERENCES sessions(id),
+  learner_turns INTEGER NOT NULL CHECK(learner_turns >= 0),
+  duration_ms INTEGER NOT NULL CHECK(duration_ms >= 0),
+  suggestions_offered INTEGER NOT NULL CHECK(suggestions_offered >= 0),
+  suggestions_adopted INTEGER NOT NULL CHECK(suggestions_adopted BETWEEN 0 AND suggestions_offered),
+  nice_count INTEGER NOT NULL CHECK(nice_count >= 0),
+  nit_count INTEGER NOT NULL CHECK(nit_count >= 0)
 );
 CREATE TABLE patterns (
   user_id TEXT NOT NULL, category TEXT NOT NULL, count INTEGER NOT NULL CHECK(count > 0),

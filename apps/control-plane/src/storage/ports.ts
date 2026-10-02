@@ -1,7 +1,7 @@
 import { z } from "zod";
 import {
-  CloseAck, CloseRequest, Course, Debrief, EndReason, Pattern, Profile, ProfilePatch,
-  WorkerBootstrap, WorkerCheckpoint, WorkerLease,
+  AttemptRow, CloseAck, CloseRequest, Course, Debrief, EndReason, Pattern, Profile, ProfilePatch,
+  SessionMetrics, WorkerBootstrap, WorkerCheckpoint, WorkerLease,
 } from "@rehearsal/contracts";
 
 export const StoredSession = z.strictObject({
@@ -18,6 +18,17 @@ export const StoredSession = z.strictObject({
 });
 export type StoredSession = z.infer<typeof StoredSession>;
 export type PatternDelta = { category: string; count: number };
+
+/**
+ * What one attempt scored: the worker's `SessionMetrics` plus the turn count its
+ * record also carries. `SessionMetrics` deliberately leaves turns out (§5.8) —
+ * the record already has them — but the metrics row is the only durable home
+ * they have once the session is over, and `AttemptRow` reads them from there.
+ */
+export const AttemptMetrics = SessionMetrics.extend({
+  learnerTurns: z.number().int().nonnegative(),
+});
+export type AttemptMetrics = z.infer<typeof AttemptMetrics>;
 
 export abstract class ProfileRepo {
   abstract getOrCreate(userId: string): Promise<Profile>;
@@ -36,7 +47,11 @@ export abstract class SessionRepo {
   abstract debrief(id: string): Promise<Debrief | undefined>;
   abstract learnedCourses(userId: string): Promise<Set<string>>;
   abstract unlearnCourse(userId: string, courseId: string): Promise<void>;
-  abstract complete(id: string, debrief: Debrief, deltas: PatternDelta[], reason: EndReason): Promise<Debrief>;
+  /** Every ended attempt of one learner, oldest first, with its metrics when it has any. */
+  abstract attempts(userId: string): Promise<AttemptRow[]>;
+  abstract complete(
+    id: string, debrief: Debrief, deltas: PatternDelta[], reason: EndReason, metrics: AttemptMetrics,
+  ): Promise<Debrief>;
   abstract cleaned(id: string): Promise<void>;
 }
 export abstract class PatternRepo {

@@ -1,0 +1,57 @@
+# Control plane (NestJS API + SQLite).
+#
+#   fly deploy --config fly.api.toml --ha=false
+#
+# This app is private on purpose: there is no [[services]] or [http_service]
+# block, so it gets no public IP and is reachable only from other apps in the
+# same Fly organization over the 6PN private network. The web app proxies
+# /api/ to it -- see deploy/fly/nginx.fly.conf.
+app = "rehearsal-api"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+  build-target = "control-plane"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+  # 6PN is IPv6-only, so the listener has to accept IPv6. "::" is the IPv6
+  # wildcard and, because Linux defaults to net.ipv6.bindv6only=0, it accepts
+  # IPv4 connections too -- which keeps Fly Proxy working if this app is ever
+  # given a public address. This is the one place where Fly differs from the
+  # "bind fly-local-6pn" advice: the API answers IPv4 traffic from nginx.
+  HOST = "::"
+  # The runtime image has no pnpm-workspace.yaml, so config.ts cannot infer the
+  # workspace root: both directories have to be absolute.
+  DATA_DIR = "/data"
+  COURSES_DIR = "/app/courses"
+  # Origin of the web app, with no trailing slash (config.ts rejects anything
+  # that is not a bare origin). deploy/fly/deploy.sh overwrites this secret
+  # from fly.web.toml's app name, so renaming that app is enough.
+  WEB_ORIGIN = "https://rehearsal-web.fly.dev"
+  JWT_ISSUER = "rehearsal-control-plane"
+  JWT_AUDIENCE = "rehearsal-web"
+  JWT_TTL_SECONDS = "86400"
+  SESSION_LIVE_TTL_SECONDS = "86400"
+  SESSION_SWEEP_SECONDS = "5"
+  SESSION_START_GRACE_MS = "30000"
+  SESSION_CLOSE_TIMEOUT_MS = "5000"
+  LIVEKIT_AGENT_NAME = "rehearsal-agent"
+  LIVEKIT_TOKEN_TTL_SECONDS = "3600"
+  # DEV_AUTH_ENABLED is deliberately absent: config.ts refuses to boot when
+  # development auth is enabled with NODE_ENV=production.
+
+# SQLite lives here. A volume is pinned to a single Machine and cannot be
+# shared, so this app must run exactly one Machine (hence --ha=false).
+[mounts]
+  source = "rehearsal_api_data"
+  destination = "/data"
+
+# canary and bluegreen are not allowed for Machines with a volume attached.
+[deploy]
+  strategy = "rolling"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

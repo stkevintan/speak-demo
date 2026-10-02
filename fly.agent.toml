@@ -1,0 +1,42 @@
+# Agent worker (LiveKit Agents).
+#
+#   fly deploy --config fly.agent.toml --ha=false
+#
+# The worker takes no inbound traffic: it dials LiveKit over an outbound
+# WebSocket and waits for jobs. There is therefore no [[services]] block, no
+# public IP and no volume -- just a Machine that stays running. Fly keeps one
+# extra stopped Machine for fast restarts; --ha=false keeps that at zero so the
+# worker does not pay for idle capacity.
+app = "rehearsal-agent"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+  build-target = "agent-worker"
+
+[env]
+  NODE_ENV = "production"
+  LIVEKIT_AGENT_NAME = "rehearsal-agent"
+  # Provider routing uses "<vendor>/<model>" ids, so changing model or vendor
+  # only ever means editing these four values.
+  STT_MODEL = "assemblyai/universal-3-5-pro"
+  LLM_MODEL = "google/gemma-4-31b-it"
+  COACH_LLM_MODEL = "google/gemma-4-31b-it"
+  TTS_MODEL = "fishaudio/s2.1-pro"
+  TURN_PATIENCE_MS_A2 = "1800"
+  TURN_PATIENCE_MS_B1 = "1500"
+  TURN_PATIENCE_MS_B2 = "1100"
+  # COACH_API_KEY / COACH_BASE_URL / TTS_VOICE are optional; set them with
+  # `fly secrets set` if the coach LLM lives somewhere other than OpenAI.
+
+# LiveKit recommends 4 cores / 8 GB per agent server for full concurrency.
+# Two shared cores and 2 GB comfortably handles a handful of simultaneous
+# learners; raise this before running a class-sized load test.
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"
+
+# Media flows through LiveKit, not through this Machine, but the worker still
+# finishes in-flight sessions before exiting so a deploy never drops a call.
+[deploy]
+  strategy = "rolling"

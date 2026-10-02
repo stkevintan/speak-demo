@@ -686,3 +686,394 @@
   flex: none;
   margin-top: 2px;
 }
+
+/* ---------- Progress ---------- */
+.prog-hero {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  padding: 20px 32px;
+  border-radius: 32px;
+  background: linear-gradient(120deg, #efeaff, #ffe9f4 55%, #fff1e6);
+  box-shadow: 0 18px 40px rgba(124, 92, 255, 0.16);
+}
+.prog-hero h2 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: -0.9px;
+}
+.prog-hero p {
+  margin: 8px 0 0;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 620px;
+}
+.prog-hero .pip {
+  flex: none;
+  margin: -12px -8px -12px 0;
+}
+
+.count-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+.count-tile {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px 20px;
+  border-radius: 26px;
+  background: #fff;
+  box-shadow: var(--sh-md);
+  position: relative;
+  overflow: hidden;
+}
+.count-tile::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 6px;
+  background: var(--accent);
+}
+.count-tile .ic {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  background: var(--soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.count-tile .n {
+  font-size: 31px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+.count-tile .lbl {
+  font-size: 13.5px;
+  font-weight: 900;
+  margin-top: 3px;
+}
+.count-tile .sub {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.prog-main {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+.prog-side {
+  width: 452px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.panel-head h4 {
+  margin: 0;
+}
+.panel-head .legend {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.panel-foot {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px dashed #e6dcf5;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.panel-foot b {
+  color: var(--violet-ink);
+}
+
+/* One scene, across every attempt */
+.scene-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+.scene-row:last-of-type {
+  border-bottom: 0;
+}
+.scene-row .meta {
+  flex: 1;
+  min-width: 0;
+}
+.scene-row .t {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: -0.2px;
+}
+.scene-row .s {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.att-strip {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+.att {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: var(--r-pill);
+  font-size: 11.5px;
+  font-weight: 900;
+  background: #f4f1f8;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.att.met {
+  background: var(--teal-soft);
+  color: var(--teal-ink);
+}
+.att.early {
+  background: var(--sun-soft);
+  color: var(--sun-ink);
+}
+.goal-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  background: #f4f1f8;
+  color: var(--muted);
+}
+.goal-badge.met {
+  background: var(--teal-soft);
+  color: var(--teal-ink);
+}
+.goal-badge.early {
+  background: var(--sun-soft);
+  color: var(--sun-ink);
+}
+
+/* Attempt-by-attempt breakdown */
+.att-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+.att-row:last-child {
+  border-bottom: 0;
+}
+.att-row .mark {
+  flex: none;
+  width: 27px;
+  height: 27px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f4f1f8;
+}
+.att-row .mark.met {
+  background: var(--teal-soft);
+}
+.att-row .mark.early {
+  background: var(--sun-soft);
+}
+.att-row .body {
+  flex: 1;
+  min-width: 0;
+}
+.att-row .head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14px;
+  font-weight: 900;
+}
+.att-row .head .goal {
+  font-size: 11.5px;
+  font-weight: 900;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: #f4f1f8;
+  color: var(--muted);
+}
+.att-row .head .goal.met {
+  background: var(--teal-soft);
+  color: var(--teal-ink);
+}
+.att-row .head .goal.early {
+  background: var(--sun-soft);
+  color: var(--sun-ink);
+}
+.att-row .counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin-top: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.att-row .counts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Nudge back into an unfinished scene */
+.nudge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0 0;
+}
+.nudge .who {
+  min-width: 0;
+}
+.nudge h3 {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+}
+.nudge .role {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* ---------- Progress score (ring + pill) ----------
+   The arc and the number are both the accent's `ink` tone: the bright `fill`
+   tones are fills, never text, and a sun arc on white fails even the 3:1 a
+   graphic needs. Nothing here is a grade — no letter, no stars, no delta. */
+.score-ring {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+}
+.score-ring svg {
+  transform: rotate(-90deg);
+  display: block;
+}
+.score-ring .n {
+  position: absolute;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.4px;
+}
+.score-pill {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 4px;
+  border-radius: var(--r-pill);
+}
+.score-pill .cap {
+  font-size: 11.5px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+/* The box the ring sits in, in the recap bar and in the hero. */
+.score-box {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.72);
+}
+.score-box .cap {
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+.score-box .sub {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--muted);
+  margin-top: 3px;
+}
+/* The recap bar is a link to My progress, so the box behaves like one. */
+.memory .score-box {
+  margin-left: auto;
+  text-decoration: none;
+  color: inherit;
+}
+/* On the progress screen the score sits after the attempt chips and before the
+   goal badge, so the number can never contradict the badge beside it. */
+.scene-row .score-pill {
+  margin-right: 2px;
+}
+.att-row .head .pts {
+  margin-left: auto;
+  font-size: 16px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.att-row .head .pts .of {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.att-note {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px dashed #e6dcf5;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.sc-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sc-right .sc-go {
+  margin-left: 0;
+}
+/* The recap bar's ring is a link to My progress, and the text keeps its room. */
+.memory .txt {
+  flex: 1;
+  min-width: 0;
+}

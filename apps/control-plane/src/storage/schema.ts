@@ -103,6 +103,18 @@ export const debriefCorrections = sqliteTable("debrief_corrections", {
   zh: text("zh").notNull(),
 }, (table) => [primaryKey({ columns: [table.sessionId, table.ordinal] })]);
 
+// Kept off `debriefs` because `unlearnCourse` deletes winning debriefs and
+// withdrawing a verdict must not erase what the attempt scored (DATABASE.md).
+export const sessionMetrics = sqliteTable("session_metrics", {
+  sessionId: text("session_id").primaryKey().references(() => sessions.id),
+  learnerTurns: integer("learner_turns").notNull(),
+  durationMs: integer("duration_ms").notNull(),
+  suggestionsOffered: integer("suggestions_offered").notNull(),
+  suggestionsAdopted: integer("suggestions_adopted").notNull(),
+  niceCount: integer("nice_count").notNull(),
+  nitCount: integer("nit_count").notNull(),
+});
+
 export const patterns = sqliteTable("patterns", {
   userId: text("user_id").notNull(),
   category: text("category").notNull(),

@@ -168,6 +168,71 @@ export const Debrief = z.strictObject({
 });
 export type Debrief = z.infer<typeof Debrief>;
 
+/* ------------------------------------------------------------------ *
+ * Progress counters — ARCHITECTURE.md §5.8
+ * ------------------------------------------------------------------ */
+
+/**
+ * The counters the `SessionRecord` does not already carry, reported by the
+ * worker with the record at `end()` (§7).
+ *
+ * `nice`/`nit` are the **admitted** cards — the ones the learner actually saw —
+ * not `CoachSignal.nice`/`total`, which count raw `observe()` findings before
+ * `admit()` dropped the repeats (§5.4). `learnerTurns` is not repeated here: the
+ * record already counts it, and the persistence layer copies it into the metrics
+ * row (`DATABASE.md` "Session metrics").
+ */
+export const SessionMetrics = z.strictObject({
+  /**
+   * Scene time, so a reconnect gap is not counted as practice. Distinct from
+   * `endedAt - startedAt`, which is the fallback for a session that never
+   * reported (`DATABASE.md` "Progress").
+   */
+  durationMs: z.number().int().nonnegative(),
+  suggestionsOffered: z.number().int().nonnegative(),
+  /** How many of those the learner tapped — the one input only the browser has (§6.3). */
+  suggestionsAdopted: z.number().int().nonnegative(),
+  nice: z.number().int().nonnegative(),
+  nit: z.number().int().nonnegative(),
+}).refine((metrics) => metrics.suggestionsAdopted <= metrics.suggestionsOffered, {
+  message: "adopted suggestions cannot exceed offered ones",
+  path: ["suggestionsAdopted"],
+});
+export type SessionMetrics = z.infer<typeof SessionMetrics>;
+
+/**
+ * What a session that has not done anything yet has scored.
+ *
+ * The control-plane writes this into the initialized checkpoint, so the worker
+ * counts up from a defined zero instead of treating "no metrics" as "not yet
+ * measured" for a session it is about to measure. Spread it — never hand the
+ * same object to two writers.
+ */
+export function emptyMetrics(): SessionMetrics {
+  return { durationMs: 0, suggestionsOffered: 0, suggestionsAdopted: 0, nice: 0, nit: 0 };
+}
+
+/**
+ * What one attempt's chip says — `UI.md` §4.8's `att` chip.
+ *
+ * Derived, never stored, and shipped rather than left to the client: three
+ * clients each deciding for themselves what "ended early" means is exactly the
+ * drift `CourseCard.fit` is computed here to avoid.
+ */
+export const AttemptMark = z.enum(["met", "missed", "ended_early"]);
+export type AttemptMark = z.infer<typeof AttemptMark>;
+
+/**
+ * Only `budget` is a finished-but-missed attempt: the character closed the scene
+ * itself, which is the one ending the learner did not choose. `user`, `quit` and
+ * `network` are all the learner stopping, and §5.7 makes that a normal exit
+ * rather than a loss.
+ */
+export function attemptMark(won: boolean, endReason: EndReason): AttemptMark {
+  if (won) return "met";
+  return endReason === "budget" ? "missed" : "ended_early";
+}
+
 /** What the worker leaves in Redis for `buildDebrief` to read (§7). */
 export const SessionRecord = z.strictObject({
   sessionId: z.string().min(1),
@@ -178,6 +243,13 @@ export const SessionRecord = z.strictObject({
   goalMet: z.boolean(),
   learnerTurns: z.number().int().nonnegative(),
   endReason: EndReason,
+  /**
+   * Optional because a checkpoint recovered after a worker died, or a session
+   * recorded before this field existed, has none — and that absence is
+   * meaningful rather than an error. The progress read falls back to the
+   * transcript span instead of inventing a duration.
+   */
+  metrics: SessionMetrics.optional(),
 });
 export type SessionRecord = z.infer<typeof SessionRecord>;
 

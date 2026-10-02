@@ -100,7 +100,7 @@ const SCENES = [
 ];
 
 function sceneCard(s, opts = {}) {
-  const { compact = false } = opts;
+  const { compact = false, score = null, scoreSize = 30 } = opts;
   const vars = `--accent:${s.accent};--soft:${s.soft};--accent-a:${hexA(s.accent, 0.4)};--ink:${s.ink}`;
   return `<article class="scene-card" style="${vars}">
     <div class="sc-head">
@@ -117,7 +117,10 @@ function sceneCard(s, opts = {}) {
     <p class="sc-setting">${s.setting}</p>
     <div class="sc-foot">
       <span class="sc-edge">${s.them} ${s.edge}</span>
-      <span class="sc-go">${icon("arrowRight", 18, "#fff", 2.4)}</span>
+      <span class="sc-right">
+        ${score === null ? '' : scorePill(score, { fill: s.accent, soft: s.soft, ink: s.ink }, 'Score', scoreSize)}
+        <span class="sc-go">${icon("arrowRight", 18, "#fff", 2.4)}</span>
+      </span>
     </div>
   </article>`;
 }

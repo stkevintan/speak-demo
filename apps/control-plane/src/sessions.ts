@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { CloseAck, SessionStart, type EndReason } from "@rehearsal/contracts";
+import { CloseAck, SessionStart, emptyMetrics, type EndReason } from "@rehearsal/contracts";
 import { CONFIG, type AppConfig } from "./config.js";
 import { CourseService } from "./catalog.js";
 import { ProfileService, MemoryService } from "./memory.js";
@@ -136,7 +136,10 @@ export class SessionService {
     if (!state.ack) return undefined;
     const ack = this.validateAck(session, state, state.ack);
     const { debrief, deltas } = buildDebrief(ack.record, session.course, session.profile, await this.catalog.listCourses());
-    const stored = await this.sessions.complete(session.id, debrief, deltas, ack.record.endReason);
+    // A session recovered from a checkpoint written before metrics existed has
+    // none; its attempts are not retroactively knowable, so they read as zero.
+    const metrics = { ...(ack.record.metrics ?? emptyMetrics()), learnerTurns: ack.record.learnerTurns };
+    const stored = await this.sessions.complete(session.id, debrief, deltas, ack.record.endReason, metrics);
     await this.memory.recordPending();
     await this.cleanup(session);
     return stored;

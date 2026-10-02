@@ -55,6 +55,42 @@ export function BackToScenes() {
   return <Link className="button button-secondary" to="/scenes"><ArrowLeft size={18} />Back to scenes</Link>;
 }
 
+/**
+ * A 0-100 progress ring (`DESIGN.md` §4).
+ *
+ * The arc and the number are both drawn in the accent's `ink` tone: the bright
+ * `fill` tones are fills, never text, and a `sun` arc on white fails even the 3:1
+ * a graphic needs.
+ *
+ * `points` is a required `number`, and the callers are what keep the "no score"
+ * case honest: a scene with no attempts and a learner with no attempts render no
+ * ring at all, because printing "0" would read as a failure they never had.
+ */
+export function ScoreRing({ points, size = 52, stroke = 5, tone = accents.violet, label }: { points: number; size?: number; stroke?: number; tone?: { fill: string; soft: string; ink: string }; label: string }) {
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const reached = Math.min(100, Math.max(0, points)) / 100;
+  return (
+    <span role="img" aria-label={`${label}: ${points} of 100`} className="relative inline-flex shrink-0 items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true" className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={tone.soft} strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={tone.ink} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - reached)} />
+      </svg>
+      <span className="absolute font-black tabular-nums leading-none" style={{ color: tone.ink, fontSize: Math.round(size * 0.36) }} aria-hidden="true">{points}</span>
+    </span>
+  );
+}
+
+/** The ring plus its caption, the shape both the recap bar and a scene card use. */
+export function ScorePill({ points, tone, caption = "Score", size = 30 }: { points: number; tone: { fill: string; soft: string; ink: string }; caption?: string; size?: number }) {
+  return (
+    <span className="flex shrink-0 items-center gap-2 rounded-full py-1 pl-1 pr-3" style={{ background: tone.soft }}>
+      <ScoreRing points={points} size={size} stroke={4} tone={tone} label={caption} />
+      <span className="text-[11.5px] font-black" style={{ color: tone.ink }}>{caption}</span>
+    </span>
+  );
+}
+
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "We couldn't complete that. Please try again.";
 }

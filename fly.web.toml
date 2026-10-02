@@ -1,0 +1,28 @@
+# Web UI: the built React bundle served by nginx, which also proxies /api/ to
+# the control plane over the private network.
+#
+#   fly deploy --config fly.web.toml --ha=false
+app = "rehearsal-web"
+primary_region = "sin"
+
+[build]
+  dockerfile = "apps/web/Dockerfile"
+  # Compose ships apps/web/nginx.conf (upstream = the `control-plane`
+  # container). Fly needs the 6PN upstream, so it swaps in a variant that
+  # resolves the API app through the platform DNS resolver.
+  [build.args]
+    NGINX_CONF = "deploy/fly/nginx.fly.conf"
+
+[http_service]
+  internal_port = 80
+  force_https = true
+  # Auth cookies are marked Secure in production (see apps/control-plane/src/
+  # auth.ts), so plain HTTP would silently lose the session. Keep this on and
+  # keep NODE_ENV=production on the API.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

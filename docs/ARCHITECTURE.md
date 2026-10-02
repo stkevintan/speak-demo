@@ -348,8 +348,9 @@ taken over it would measure the filter rather than the learner. Raw findings are
 a per-utterance assessment, which is a fair sample.
 
 Two hard rules attach to it: it is **never shown as a number** (a percentage of
-correctness is the overall score `PRODUCT.md` bans), and it **never decides
-`won`** — see §5.6.
+correctness is a *verdict on the learner*, which is not what the progress score
+is — the score measures what you did in a scene, and this measures how good your
+English was), and it **never decides `won`** — see §5.6.
 
 ### 5.5 Memory
 
@@ -390,10 +391,10 @@ come apart, and the direction they come apart in decides the design:
 
 Deriving `won` from the positive rate would tell that second learner they won a
 task they never did — worse than telling the first their English was messy. And
-a proficiency percentage gating a task verdict is the overall score `PRODUCT.md`
-bans, wearing a different hat. Hence `won: boolean`: "did you win?" is a game
-question, and games are binary. `worked[]` is what cushions a "no", not a third
-verdict.
+a proficiency percentage gating a task verdict is a judgement on the learner's
+English, which is the one thing `PRODUCT.md` refuses to render. Hence
+`won: boolean`: "did you win?" is a game question, and games are binary.
+`worked[]` is what cushions a "no", not a third verdict.
 
 **The positive rate earns its place elsewhere:** it orders `worked[]` so the most
 genuine praise leads, picks the `headline`, and chooses `next` — a learner whose
@@ -443,6 +444,154 @@ finished, filled in with whatever actually happened.
 talking. Both punish the learner for being engaged, which is the opposite of the
 point.
 
+### 5.8 Progress
+
+The debrief answers "did I win?" for one scene. `PRODUCT.md` "My Progress" asks
+the harder question — across scenes, and across repeats of one scene, is this
+going anywhere? It is a **derivation, not a feature**: nothing new is measured,
+and one pure function reads what the sessions already left behind.
+
+```ts
+function progressView(courses: Course[], attempts: AttemptRow[]): Progress
+
+type Progress = {
+  totals: { met: number; unfinished: number; notStarted: number };
+  goals: GoalProgress[];          // unfinished, then not_started, then met
+};
+
+type GoalProgress = {
+  courseId: string;
+  title: string;
+  goal: string;                   // the scene's goal line, so the screen needs no join
+  state: "met" | "unfinished" | "not_started";
+  attempts: number;
+  wonOnAttempt: number | null;    // 1-based index of the first win
+  score: Attempt | null;          // the winning attempt, else the latest; null if not_started
+  points: number;                 // score.points, hoisted; 0 before the first attempt
+  history: Attempt[];             // every attempt, oldest first
+};
+
+/** What one attempt scored, reported by the worker at `end()` (§6.3). */
+type SessionMetrics = {
+  durationMs: number;             // scene time; a reconnect gap is not practice
+  suggestionsOffered: number;
+  suggestionsAdopted: number;     // adopted <= offered
+  nice: number;                   // ✓ cards the learner saw, after admit()
+  nit: number;                    // ⚠ cards the learner saw, after admit()
+};
+
+/** One session as `SessionRepo.attempts()` returns it, before it is numbered. */
+type AttemptRow = {
+  courseId: string;               // business id, not definition id
+  sessionId: string;
+  startedAt: number;
+  endedAt: number | null;
+  won: boolean;                   // debriefs.won; a missing debrief reads false
+  endReason: EndReason;
+  learnerTurns: number;           // the record's own count; 0 with no record
+  metrics: SessionMetrics | null; // null when the session never wrote a record
+};
+
+/** One attempt as the screen renders it — the row, numbered and marked. */
+type Attempt = {
+  sessionId: string;
+  attempt: number;                // 1-based, ordered by startedAt within the course
+  startedAt: number;
+  endedAt: number | null;
+  mark: "met" | "missed" | "ended_early";
+  won: boolean;                   // `met` exactly when this is true
+  durationMs: number;             // metrics' scene time, else endedAt - startedAt
+  learnerTurns: number;
+  suggestionsOffered: number;     // 0 when the session reported no metrics
+  suggestionsAdopted: number;
+  nice: number;                   // ✓ cards the learner saw
+  nit: number;                    // ⚠ cards the learner saw
+  points: number;                 // 0-100, `attemptPoints()`; shipped, not recomputed
+};
+```
+
+**Goals are ordered by what needs doing.** `unfinished` first, then `not_started`,
+then `met`; within a group, most recent activity first. A screen that exists to
+answer "what next" cannot open on the courses that are already done.
+
+**One attempt is one session.** A learner who plays Dana three times has three
+attempts, ordered by `startedAt`; the attempt number is that order, not a stored
+field. Attempts are keyed by **course business id**, never `definition_id`: a
+session pins an immutable definition, so a content edit mints a new one, and
+keying on it would silently split one learner's history in two.
+
+**Three states, all derived.** A goal is `met` when any attempt won, `unfinished`
+when the learner started and never won — including attempts that produced no
+debrief at all, because quitting is not a failure state (§5.7) — and
+`not_started` when the course is in the catalog with no attempt. The three counts
+therefore always sum to the catalog size.
+
+**A miss is a finished scene, not a departure.** The `att` chip carries three
+values because "played out and did not win" and "stopped" are different things to
+show someone: `met` is a win, `missed` is a scene the character closed itself
+once the goal budget ran out (`endReason` `budget`), and `ended_early` is any
+attempt the learner left — `user`, `quit` or `network`. Someone who walks away is
+never told they missed.
+
+**`met` is the same read as the picker's learned badge.** Both ask `debriefs.won`
+for this user and course, so the checkmark on a scene card and the goal count on
+the progress screen cannot disagree.
+
+**The score is one number, and it is weighted so it cannot lie.** `PRODUCT.md`
+used to ban a composite outright — *"a bad number is worse than no number"* — and
+that rule still governs the *shape* of the number, which is why the weights are
+what they are. `attemptPoints()` in `@rehearsal/contracts` is the only place an
+attempt is scored, for the same reason `progressView` is the only place a mark
+is: the API, the recap bar and the progress screen must not be able to score one
+attempt three ways, and `history` will eventually be persisted, so a rule that
+lives in a screen would fork the moment an old row is read.
+
+| Component | Points | Cap |
+| --- | --- | --- |
+| `won` | 55 | all or nothing |
+| `durationMs` | 15 | 360,000 ms (6 min) |
+| `suggestionsAdopted` | 15 | 3 |
+| `nice + nit` | 15 | 6 |
+
+**The 55/45 split is load-bearing, not cosmetic.** It is what makes the number
+safe to show: a winning attempt can never score below 55 and a losing one can
+never score above 45, so the score can never contradict the `met` badge printed
+next to it. Split it evenly and a long, talkative failure outranks a short
+success — the exact "bad number" `PRODUCT.md` refuses. This is the one invariant
+the test suite asserts directly.
+
+**Every component is capped and monotonic.** Time stops paying at six minutes, so
+a marathon cannot buy a 100; talking more, adopting more suggestions or reading
+more cards can only ever help. Nothing rewards *not* doing something, which is
+what stops the number being gamed by quitting early. An attempt with no metrics
+still scores — it falls back to its wall-clock span like every other duration.
+
+**A scene's score is its scored attempt, not its best.** `points` is
+`score.points`, so it is the win when there is one and the latest attempt when
+there is not. It moves with the summary tiles beside it. The win it cannot take
+away is already carried by `state` and `wonOnAttempt`; a separate "best" would be
+a fourth opinion about the same history.
+
+**The recap bar's number is the mean of the scenes tried.** `overallPoints()`
+averages `points` over goals with at least one attempt, so opening a new scene
+never lowers the number. It returns `null`, not 0, before the first attempt — an
+untouched learner has no score, and a 0 reads as a failure they never had. Same
+rule per scene: `not_started` renders no score at all.
+
+**Repeats show history, not a regression.** `score` is the winning attempt when
+the goal is met and the latest attempt when it is not; `history` carries every
+attempt oldest-first. A later, worse attempt does not take `met` away — the state
+means *you have beaten this scene*, which stays true — and the API declares no
+trend. Which components moved is the learner's to read, because "worse" is
+exactly the judgement `PRODUCT.md` says not to render. The score follows the same
+rule: it is one attempt's number, never a delta against the last one.
+
+**Everything here already exists except one number.** Duration, turns, ✓/⚠ counts
+and `goalMet` are already in the `SessionRecord` the worker leaves in Redis
+(§5.6). Suggestion adoption is the single new input: only the browser knows the
+learner tapped an example, so the worker counts `suggestions.adopted` (§6.3) and
+reports it with the record.
+
 ## 6. Contracts
 
 ### 6.1 Contract first
@@ -471,13 +620,20 @@ spec is a third view of one shape rather than a third copy of it.
 | `PATCH` | `/api/me` | `Profile` |
 | `GET` | `/api/courses` | `CourseCard[]` — every course, sorted by level fit, never filtered |
 | `GET` | `/api/courses/{id}` | `Course` |
+| `POST` | `/api/courses/{id}/unlearn` | `204` — withdraw a learned verdict; deletes winning debriefs only |
 | `POST` | `/api/sessions` | `{ sessionId, livekit: { url, token }, recalled }` |
 | `POST` | `/api/sessions/{id}/end` | `Debrief` |
 | `GET` | `/api/sessions/{id}/debrief` | `Debrief` |
+| `GET` | `/api/progress` | `Progress` — met / unfinished / not started counts, one score per goal, and a 0-100 score per attempt |
 
 The LiveKit token is minted here and scoped to one room. It is the only
 credential the browser ever holds — provider keys stay in `agent-worker` and
 `control-plane`.
+
+`/api/progress` is the only read that spans sessions. It is derived per request
+from the learner's sessions, their metrics and the current catalog (§5.8) — there
+is no progress table and nothing to keep in sync — and it reuses the learned-state
+query the picker already runs, so the two surfaces agree by construction.
 
 ### 6.3 Realtime surface (LiveKit data channel)
 
@@ -490,6 +646,7 @@ Validated with zod on both ends; the schemas are shared from
 | `transcript.final` | worker → web | `{ role: "learner" \| "character", text, tStart, tEnd }` |
 | `coach.card` | worker → web | `{ kind, category, quote, better?, en, zh }` |
 | `suggestions` | worker → web | `{ prompt, options: string[] }` |
+| `suggestions.adopted` | web → worker | `{ optionIndex }` — the learner tapped an example; the only new input §5.8 needs. The worker matches it against its own current offer, so the browser reports a tap rather than asserting which offer it answered |
 | `alert` | worker → web | `{ code: "mic_unavailable", message }` |
 | `session.end` | web → worker | `{ reason: "user" }` |
 
@@ -571,11 +728,16 @@ carries (§6.2).
 | Transcript | worker → Redis | Text + timing. Read by the coach, never written to SQLite (§11) |
 | Findings | worker → Redis | The `coach.card` payloads, kept for the debrief |
 | `goalMet` | worker → Redis | The character's verdict on the scene |
-| `Debrief` | control-plane → web | Built at `end()` from the three rows above |
+| `suggestions.adopted` | web → worker → Redis | Which example the learner tapped; counted, never kept as text |
+| `SessionMetrics` | worker → control-plane | Counters that ride with the `SessionRecord` at `end()`, persisted with the debrief (§5.8) |
+| `Debrief` | control-plane → web | Built at `end()` from the rows above |
 | `Pattern[]` | control-plane → worker | Recalled at session start, in the token response |
+| `Progress` | control-plane → web | Derived per request from sessions, metrics and the catalog |
 
 `control-plane` mints a token and gets out of the media path entirely, which is
-what keeps it stateless and cheap to scale.
+what keeps it stateless and cheap to scale. The one new durable payload is
+`SessionMetrics` — counters and a duration, written with the debrief in the same
+transaction. Nothing else about the media path changes.
 
 ---
 
@@ -621,6 +783,10 @@ Every row ends in a next action. No path leaves the learner stuck.
    independently of conversation latency.
 6. **Make the debrief a queued job.** Today `end()` builds it inline; at scale,
    enqueue it and let the learner receive it over the data channel.
+7. **`/api/progress` becomes a cache, not a query.** It reads every session a
+   learner has. That is nothing at MVP scale and a per-user aggregate at 10k, so
+   it moves behind a Redis entry keyed by user and invalidated by the one event
+   that can change it — a session ending.
 
 The load-bearing decision for all of this is that the coach is asynchronous and
 `control-plane` is stateless. Those two choices are what make the rest a
@@ -661,6 +827,11 @@ about, so they are recorded rather than left implicit.
 | Auth | One hardcoded dev user behind the JWT interface | Memory across sessions needs a stable id; real login adds nothing in two hours |
 | Pronunciation scoring | Out of scope | Buildable, but the two-hour budget doesn't cover it — upgrade paths in §1 |
 | Playwright | Renderer only, no test suite | `CODE_INSTRUCTION.md` bans Playwright tests, not screenshots |
+| Progress state | Derived, never stored | Three counts over data the sessions already hold. A stored copy is a fourth thing to keep in sync — and the one that goes stale |
+| Progress "met" | `debriefs.won` — the learned-state query | Two surfaces reading one query cannot disagree, so the scene card's checkmark and the progress count are never two answers |
+| Attempt identity | Course business id, not `definition_id` | Definitions are immutable and a content edit mints a new one; keying on it would split one learner's history in two |
+| Progress score | One 0-100 figure, weighted 55/45 goal over engagement | `PRODUCT.md`'s "a bad number is worse than no number" sets the weights: the goal majority means a win always outranks a miss, so the score can never contradict the badge beside it. `attemptPoints()` is the only place it is computed |
+| Suggestion adoption | Counted per session, never scored | It says whether the hint was useful, not whether the learner was good |
 
 Still open, and an implementation call rather than a product one: whether the
 coach runs in `agent-worker` or its own service. Lean is in-worker for the MVP;

@@ -57,6 +57,16 @@ export const WorkerCheckpoint = z.strictObject({
   signal: SessionRecord.shape.signal,
   goalMet: z.boolean(),
   learnerTurns: z.number().int().nonnegative(),
+  /**
+   * On the checkpoint rather than only on `CloseAck` because a worker that dies
+   * mid-scene is recovered *from the checkpoint* and the recovered record must
+   * equal the one the worker would have sent (`agent-worker/src/store.ts`
+   * `freeze()`). Counters kept anywhere else would make the two paths differ.
+   *
+   * Optional for a session that ended before this field existed; `CloseAck`
+   * inherits the same optionality through `SessionRecord`.
+   */
+  metrics: SessionRecord.shape.metrics,
 });
 export type WorkerCheckpoint = z.infer<typeof WorkerCheckpoint>;
 

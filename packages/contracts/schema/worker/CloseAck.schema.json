@@ -155,6 +155,44 @@
             "goal",
             "budget"
           ]
+        },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "durationMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "suggestionsOffered": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "suggestionsAdopted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "nice": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "nit": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "durationMs",
+            "suggestionsOffered",
+            "suggestionsAdopted",
+            "nice",
+            "nit"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [

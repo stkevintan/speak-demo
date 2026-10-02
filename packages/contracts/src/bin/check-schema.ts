@@ -18,6 +18,7 @@ import {
   EndReason,
   SessionRecord,
 } from "../zod/session.js";
+import { Progress } from "../zod/progress.js";
 import { ApiErrorBody, StartSessionRequest } from "../zod/http.js";
 import { SessionSnapshot } from "../zod/events.js";
 import { CloseAck, CloseRequest, WorkerBootstrap, WorkerCheckpoint, WorkerLease } from "../zod/worker.js";
@@ -49,6 +50,7 @@ const http: Array<[string, z.ZodType]> = [
   ["CoachSignal", CoachSignal],
   ["Turn", Turn],
   ["StartSessionRequest", StartSessionRequest],
+  ["Progress", Progress],
   ["ApiErrorBody", ApiErrorBody],
 ];
 

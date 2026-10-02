@@ -65,6 +65,34 @@ That's the loop closing. That's why you come back.
 
 ---
 
+## My Progress
+Problem: A learner who has done several scenes has no sense of whether they're improving. Surface a learner's progress across sessions.
+
+1. How many goal you have meet, how many scenes tried but unfinished, how many scenes are not started.
+2. goal -> boolean => score: (time, how many coach suggestion adopted, how many good  and sharppend feedbacks)
+3. For sessions with multiple attempts, goal - boolean/score
+
+**The score.** Every attempt is scored 0–100, points achieved over points achievable. The
+100 splits so that meeting the goal is worth more than everything else combined:
+
+| What | Worth | Cap |
+| --- | --- | --- |
+| Goal met | 55 | all or nothing |
+| Time on task | 15 | 6 minutes |
+| Coach suggestions adopted | 15 | 3 |
+| Coach cards (nice + upgrade) | 15 | 6 |
+
+The 55/45 split is the whole point of the feature, not a detail. It means a winning
+attempt can never score below 55 and a losing one can never score above 45, so the
+number can never contradict the "Goal met" badge beside it. Split it evenly and a long,
+talkative failure outranks a short success — a number that lies, which is worse than no
+number at all (see **Never demoralising**).
+
+A scene's score is its scored attempt — the win if there is one, otherwise the latest —
+and the homepage recap bar shows the mean across the scenes you have actually tried.
+Scenes you have not opened are excluded rather than counted as zero, and a learner with
+no attempts yet sees no score at all instead of a 0.
+
 ## MVP — what we build in 2 hours
 
 **The must-haves, in priority order:**
@@ -106,7 +134,7 @@ This is the constraint that shapes every other decision. The learner is already 
 
 **Never flooded.** Cap the corrections. At most one minor nit every couple of turns, never the same one twice. A wall of red text is noise, and noise gets ignored.
 
-**Never demoralising.** Positive cards always show. Corrections are framed as upgrades — *"a sharper way to say that"* — never as errors. No pronunciation score. No single overall score. A bad number is worse than no number: it's discouraging *and* it's unreliable.
+**Never demoralising.** Positive cards always show. Corrections are framed as upgrades — *"a sharper way to say that"* — never as errors. No pronunciation score. The only number a learner sees is the progress score, and it is built so it can never demoralise: the goal is worth 55 of the 100, so trying and failing always scores below succeeding, however long you talked. A bad number is worse than no number, so the number is weighted to stay honest — and a scene you have not tried shows no score rather than a 0.
 
 **Never ambiguous silence.** Always show whether it's listening, thinking, or speaking. Otherwise the learner talks over the AI or waits forever wondering if it broke.
 

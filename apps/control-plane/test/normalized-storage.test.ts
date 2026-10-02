@@ -11,7 +11,7 @@ import { DATABASE_FILENAME, SCHEMA_VERSION } from "../src/storage/initialize.js"
 import { SqliteStorage } from "../src/storage/sqlite.js";
 import type { StoredSession } from "../src/storage/ports.js";
 import * as schema from "../src/storage/schema.js";
-import { fixtureConfig } from "./fixtures.js";
+import { attemptMetrics, fixtureConfig } from "./fixtures.js";
 
 const debrief: Debrief = {
   won: true, headline: "Goal reached", worked: ["Second", "First", "Second"], watch: ["B", "A", "B"],
@@ -57,7 +57,7 @@ test("normalized records round-trip nested data, order and duplicates across edi
     assert.deepEqual(await storage.get("one"), value);
     await storage.complete("one", debrief, [
       { category: "tense", count: 2 }, { category: "tense", count: 3 },
-    ], "goal");
+    ], "goal", attemptMetrics());
     await storage.replaceCatalog([{ ...course, title: "New catalog", coachHints: [], budget: { learnerTurns: 3 } }]);
     await storage.patch("learner", { level: "A2", chinese: false });
     assert.deepEqual((await storage.get("one"))?.course, course);
@@ -112,13 +112,15 @@ test("learned and unlearn queries isolate users/courses and cascade only winning
     const learner = await storage.getOrCreate("learner");
     const other = await storage.getOrCreate("other");
     const records = [
-      session("win-1", course, learner), session("win-2", course, learner),
-      session("loss", course, learner), session("foreign", course, other),
-      session("different-course", { ...course, id: "another" }, learner),
+      { ...session("win-1", course, learner), startedAt: 100 },
+      { ...session("win-2", course, learner), startedAt: 200 },
+      { ...session("loss", course, learner), startedAt: 300 },
+      { ...session("foreign", course, other), startedAt: 400 },
+      { ...session("different-course", { ...course, id: "another" }, learner), startedAt: 500 },
     ];
     for (const record of records) {
       await storage.create(record);
-      await storage.complete(record.id, { ...debrief, won: record.id !== "loss" }, [{ category: "tense", count: 1 }], "user");
+      await storage.complete(record.id, { ...debrief, won: record.id !== "loss" }, [{ category: "tense", count: 1 }], "user", attemptMetrics());
     }
     assert.deepEqual(await storage.learnedCourses("learner"), new Set([course.id, "another"]));
     assert.deepEqual(await storage.learnedCourses("other"), new Set([course.id]));
@@ -138,6 +140,18 @@ test("learned and unlearn queries isolate users/courses and cascade only winning
     assert.equal(count(client, "debriefWorked"), 3 * debrief.worked.length);
     assert.equal(count(client, "debriefWatch"), 3 * debrief.watch.length);
     assert.equal(count(client, "debriefCorrections"), 3 * debrief.corrections.length);
+    // Progress reads the same `won` the picker does, keyed on the business
+    // course id, and it survives an unlearn: withdrawing a verdict removes the
+    // debrief, not the record of what the attempt scored.
+    const attempts = await storage.attempts("learner");
+    assert.deepEqual(attempts.map(({ sessionId, courseId, won, startedAt }) => ({ sessionId, courseId, won, startedAt })), [
+      { sessionId: "win-1", courseId: course.id, won: false, startedAt: 100 },
+      { sessionId: "win-2", courseId: course.id, won: false, startedAt: 200 },
+      { sessionId: "loss", courseId: course.id, won: false, startedAt: 300 },
+      { sessionId: "different-course", courseId: "another", won: true, startedAt: 500 },
+    ]);
+    assert.equal(count(client, "sessionMetrics"), 5);
+    assert.equal((await storage.attempts("other")).length, 1);
     await storage.applyPending();
     assert.equal((await storage.recall("learner"))[0]?.count, 4);
     assert.equal((await storage.recall("other"))[0]?.count, 1);
@@ -155,15 +169,15 @@ test("completion and memory updates are atomic across normalized child rows", as
     await storage.create(session("one", course, await storage.getOrCreate("learner")));
     client.exec(`CREATE TRIGGER fail_ledger BEFORE INSERT ON pattern_updates
       BEGIN SELECT RAISE(ABORT, 'test ledger failure'); END`);
-    await assert.rejects(storage.complete("one", debrief, [{ category: "tense", count: 1 }], "goal"));
-    for (const table of ["debriefs", "debriefWorked", "debriefWatch", "debriefCorrections", "patternUpdates", "patternDeltas"] as const) {
+    await assert.rejects(storage.complete("one", debrief, [{ category: "tense", count: 1 }], "goal", attemptMetrics()));
+    for (const table of ["debriefs", "debriefWorked", "debriefWatch", "debriefCorrections", "sessionMetrics", "patternUpdates", "patternDeltas"] as const) {
       assert.equal(count(client, table), 0);
     }
     assert.equal((await storage.get("one"))?.status, "live");
     client.exec("DROP TRIGGER fail_ledger");
     const [first, repeated] = await Promise.all([
-      storage.complete("one", debrief, [{ category: "tense", count: 1 }, { category: "articles", count: 2 }], "goal"),
-      second.complete("one", { ...debrief, won: false }, [{ category: "wrong", count: 99 }], "network"),
+      storage.complete("one", debrief, [{ category: "tense", count: 1 }, { category: "articles", count: 2 }], "goal", attemptMetrics({ learnerTurns: 6, durationMs: 300_000 })),
+      second.complete("one", { ...debrief, won: false }, [{ category: "wrong", count: 99 }], "network", attemptMetrics({ learnerTurns: 6, durationMs: 300_000 })),
     ]);
     assert.deepEqual(first, repeated);
     client.exec(`CREATE TRIGGER fail_pattern BEFORE INSERT ON patterns WHEN NEW.category='articles'

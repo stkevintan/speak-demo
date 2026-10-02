@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>08 My progress</title>
+<link rel="stylesheet" href="_base.css">
+<link rel="stylesheet" href="_app.css">
+<style>
+  .shell{padding:0 44px 22px;height:800px;display:flex;flex-direction:column;gap:14px}
+  .list-panel{flex:1;min-width:0;display:flex;flex-direction:column;padding:20px 24px}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="blob" data-bleed style="width:560px;height:560px;background:#D9CCFF;left:-190px;top:-200px"></div>
+  <div class="blob" data-bleed style="width:480px;height:480px;background:#FFE0D4;right:-160px;bottom:-190px"></div>
+
+  <div class="topbar">
+    <div class="brand"><span style="display:flex" id="brandPip"></span> Rehearsal</div>
+    <span class="pill" style="background:#fff;box-shadow:var(--sh-sm);color:var(--ink-2)">
+      My progress</span>
+    <div class="grow"></div>
+    <span class="pill" style="background:var(--violet-soft);color:#5B3FD6">Level B1</span>
+    <div class="icon-btn" id="settings"></div>
+  </div>
+
+  <div class="shell">
+    <div class="prog-hero">
+      <div style="flex:1">
+        <h2>You've met 3 of 6 goals.</h2>
+        <p id="heroCopy">Seven attempts across four scenes. The past tense has stopped slipping —
+           and two scenes are still waiting for you.</p>
+      </div>
+      <div id="heroScore"></div>
+      <div class="pip" data-bleed id="hero"></div>
+    </div>
+
+    <div class="count-row" id="counts"></div>
+
+    <div class="prog-main">
+      <div class="panel list-panel">
+        <div class="panel-head">
+          <h4 id="hScenes"></h4>
+          <span class="legend" id="legend"></span>
+        </div>
+        <div id="rows"></div>
+        <div class="panel-foot" id="foot"></div>
+      </div>
+
+      <div class="prog-side">
+        <div class="panel" style="flex:none">
+          <div class="panel-head">
+            <h4 id="hAttempts"></h4>
+            <span class="legend">Sam &middot; A2</span>
+          </div>
+          <div id="attempts"></div>
+        </div>
+
+        <div class="panel" style="flex:1;display:flex;flex-direction:column;padding:18px 22px">
+          <div class="panel-head" style="margin-bottom:8px"><h4 id="hNext"></h4></div>
+          <p style="margin:0;font-size:13px;font-weight:650;color:var(--muted);line-height:1.45">
+            You stopped after three minutes, so Elena never heard the end of your story.</p>
+          <div class="nudge" id="nudge"></div>
+          <div style="margin-top:auto;padding-top:14px">
+            <div class="btn btn-primary" style="width:100%;font-weight:900;padding:14px" id="go"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="_mascot.js"></script>
+<script src="_icons.js"></script>
+<script src="_scenes.js"></script>
+<script src="_check.js"></script>
+<script>
+  const scene = id => SCENES.find(s => s.id === id);
+
+  /* One entry per scene, in the same order as the picker. `attempts` is the
+     per-attempt record: goal boolean plus the three counts the coach already
+     produces (time on task, suggestions adopted, nice + upgrade cards).
+     `mins`/`tips`/`nice`/`ups` are the raw counts the score is built from, so the
+     mockup can derive its own numbers with the app's rule instead of hard-coding
+     them. */
+  const PROGRESS = [
+    { id: 'refund', goal: 'met', attempts: [
+      { ok: false, mins: 4, tips: 1, nice: 2, ups: 2 },
+      { ok: true,  mins: 6, tips: 3, nice: 2, ups: 4 } ] },
+    { id: 'raise', goal: 'none', attempts: [] },
+    { id: 'flat', goal: 'met', attempts: [
+      { ok: true,  mins: 5, tips: 2, nice: 3, ups: 3 } ] },
+    { id: 'interview', goal: 'early', attempts: [
+      { ok: 'early', mins: 3, tips: 0, nice: 1, ups: 1 } ] },
+    { id: 'party', goal: 'met', attempts: [
+      { ok: false, mins: 4, tips: 1, nice: 1, ups: 2 },
+      { ok: false, mins: 4, tips: 2, nice: 2, ups: 3 },
+      { ok: true,  mins: 5, tips: 3, nice: 3, ups: 5 } ] },
+    { id: 'clinic', goal: 'none', attempts: [] },
+  ];
+
+  /* The same rule as `attemptPoints()` / `overallPoints()` in
+     `packages/contracts/src/progress.ts`, so the mockup cannot show a score the
+     app would not. Meeting the goal is worth 55 of the 100 and the three
+     engagement counters share the other 45, which is what keeps a win above
+     every miss. */
+  const POINTS = { goal: 55, time: 15, suggestions: 15, cards: 15 };
+  const TARGETS = { mins: 6, tips: 3, cards: 6 };
+  const share = (value, target) => Math.min(1, Math.max(0, value / target));
+  const attemptPoints = a => Math.round(
+    (a.ok === true ? POINTS.goal : 0) +
+    POINTS.time * share(a.mins, TARGETS.mins) +
+    POINTS.suggestions * share(a.tips, TARGETS.tips) +
+    POINTS.cards * share(a.nice + a.ups, TARGETS.cards));
+  /* A scene's score is the attempt `score` points at — the winning one once the
+     goal is met, otherwise the latest — not the best. */
+  const scenePoints = p => {
+    if (!p.attempts.length) return null;
+    const win = p.attempts.findIndex(a => a.ok === true);
+    return attemptPoints(p.attempts[win === -1 ? p.attempts.length - 1 : win]);
+  };
+  const scored = PROGRESS.filter(p => p.attempts.length).map(scenePoints);
+  const overall = scored.length ? Math.round(scored.reduce((a, b) => a + b, 0) / scored.length) : null;
+  const sum = pick => PROGRESS.reduce((n, p) => n + p.attempts.reduce((m, a) => m + pick(a), 0), 0);
+  const attemptCount = sum(() => 1);
+
+  const MARK = { true: ['check', '#08735A'], false: ['cross', '#66617C'], early: ['stop', '#8A6013'] };
+  const BADGE = {
+    met:   { cls: 'met',   icon: 'check',  ink: '#08735A', label: 'Goal met' },
+    early: { cls: 'early', icon: 'clock',  ink: '#8A6013', label: 'Ended early' },
+    none:  { cls: '',      icon: 'target', ink: '#66617C', label: 'Not started yet' },
+  };
+
+  const TILES = [
+    { n: 3, lbl: 'Goals met', sub: 'Faulty item &middot; Renting a flat &middot; Party',
+      accent: '#12C8A0', soft: '#DEF7F0', icon: 'check', ink: '#08735A' },
+    { n: 1, lbl: 'Tried, not finished', sub: 'Job interview &mdash; ended early',
+      accent: '#FFC93C', soft: '#FFF4D8', icon: 'clock', ink: '#8A6013' },
+    { n: 2, lbl: 'Not started yet', sub: 'Asking for a raise &middot; Rescheduling',
+      accent: '#3DBDFF', soft: '#E1F2FF', icon: 'target', ink: '#1A6A99' },
+  ];
+
+  document.getElementById('brandPip').innerHTML = pipSvg(34, 'idle');
+  document.getElementById('hero').innerHTML = pipSvg(104, 'cheer');
+  document.getElementById('heroCopy').innerHTML =
+    `${attemptCount} attempts across ${scored.length} scenes. The past tense has stopped slipping — ` +
+    `and two scenes are still waiting for you.`;
+  document.getElementById('heroScore').innerHTML = overall === null ? '' :
+    scoreBox(overall, 62, 7, 'Overall progress',
+      `across ${scored.length} scene${scored.length === 1 ? '' : 's'} you have tried`);
+  document.getElementById('settings').innerHTML = icon('settings', 20, '#3D3659', 2.2);
+
+  document.getElementById('hScenes').innerHTML = icon('users', 17, '#5B3FD6', 2.4) + ' Your scenes';
+  document.getElementById('hAttempts').innerHTML = icon('refresh', 17, '#5B3FD6', 2.4) + ' Attempt by attempt';
+  document.getElementById('hNext').innerHTML = icon('arrowRight', 17, '#5B3FD6', 2.4) + ' Pick up where you left off';
+  document.getElementById('legend').innerHTML =
+    icon('check', 12, '#08735A', 3) + ' met &nbsp; ' +
+    icon('cross', 12, '#66617C', 3) + ' missed &nbsp; ' +
+    icon('stop', 12, '#8A6013', 2.4) + ' ended early';
+
+  document.getElementById('counts').innerHTML = TILES.map(t => `
+    <div class="count-tile" style="--accent:${t.accent};--soft:${t.soft}">
+      <span class="ic">${icon(t.icon, 22, t.ink, 2.6)}</span>
+      <div style="min-width:0">
+        <div class="n" style="color:${t.ink}">${t.n}</div>
+        <div class="lbl">${t.lbl}</div>
+        <div class="sub">${t.sub}</div>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('rows').innerHTML = PROGRESS.map(p => {
+    const s = scene(p.id);
+    const b = BADGE[p.goal];
+    const chips = p.attempts.map((a, i) => {
+      const [ic, ink] = MARK[String(a.ok)];
+      const cls = a.ok === true ? ' met' : a.ok === 'early' ? ' early' : '';
+      return `<span class="att${cls}" title="Attempt ${i + 1}">${icon(ic, 12, ink, 3)}Attempt ${i + 1}</span>`;
+    }).join('');
+    const n = p.attempts.length;
+    const pts = scenePoints(p);
+    return `<div class="scene-row">
+      ${avatarSvg({ size: 46, accent: s.accent, ...s.avatar })}
+      <div class="meta">
+        <div class="t">${s.title}</div>
+        <div class="s">${s.them} &middot; ${s.role} &middot; ${s.level}${n ? ` &middot; ${n} attempt${n > 1 ? 's' : ''}` : ''}</div>
+      </div>
+      <div class="att-strip">${chips}</div>
+      ${pts === null ? '' : scorePill(pts, { fill: s.accent, soft: s.soft, ink: s.ink }, `${s.title} score`)}
+      <span class="goal-badge ${b.cls}">${icon(b.icon, 13, b.ink, 3)}${b.label}</span>
+    </div>`;
+  }).join('');
+
+  /* The footer counts what the attempts already reported, and the weighting is
+     printed next to the numbers because a score a learner cannot decode is a
+     score they will misread. */
+  document.getElementById('foot').innerHTML =
+    `Across all ${attemptCount} attempts you used <b>${sum(a => a.tips)} suggestions</b>, earned ` +
+    `<b>${sum(a => a.nice)} nice moments</b> and <b>${sum(a => a.ups)} upgrades</b>. ` +
+    'Each attempt is scored out of 100: <b>55 for meeting the goal</b>, then up to 15 each for time, ' +
+    'suggestions you used and coach cards.';
+
+  document.getElementById('attempts').innerHTML = PROGRESS[4].attempts.map((a, i) => {
+    const [ic, ink] = MARK[String(a.ok)];
+    const cls = a.ok === true ? ' met' : a.ok === 'early' ? ' early' : '';
+    const label = a.ok === true ? 'Goal met' : a.ok === 'early' ? 'Ended early' : 'Goal missed';
+    const counts = [
+      [icon('clock', 13, '#66617C', 2.2), `${a.mins} min`],
+      [icon('bolt', 13, '#66617C', 2.2), `${a.tips} suggestion${a.tips === 1 ? '' : 's'} used`],
+      [icon('heart', 13, '#66617C', 2.2), `${a.nice} nice`],
+      [icon('sparkle', 13, '#66617C', 2.2), `${a.ups} upgrade${a.ups === 1 ? '' : 's'}`],
+    ].map(([ic2, txt]) => `<span>${ic2}${txt}</span>`).join('');
+    return `<div class="att-row">
+      <span class="mark${cls}">${icon(ic, 14, ink, 3)}</span>
+      <div class="body">
+        <div class="head">Attempt ${i + 1}<span class="goal${cls}">${label}</span>
+          <span class="pts" style="color:${ink}">${attemptPoints(a)}<span class="of">/100</span></span></div>
+        <div class="counts">${counts}</div>
+      </div>
+    </div>`;
+  }).join('') +
+    `<p class="att-note">Meeting the goal is worth 55 of the 100, so a win always
+      outranks a miss.</p>`;
+
+  const elena = scene('interview');
+  document.getElementById('nudge').innerHTML =
+    avatarSvg({ size: 44, accent: elena.accent, ...elena.avatar }) +
+    `<div class="who"><h3>${elena.title}</h3>
+      <div class="role">${elena.them} &middot; ${elena.role} &middot; ${elena.level}</div></div>`;
+  document.getElementById('go').innerHTML = 'Back to Elena ' + icon('arrowRight', 18, '#1B1633', 2.6);
+</script>
+</body>
+</html>

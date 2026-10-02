@@ -117,6 +117,24 @@ export const LearnerInterrupt = z.strictObject({
   payload: z.strictObject({}),
 });
 
+/**
+ * The learner tapped one of the replies `suggestions` offered (§6.3).
+ *
+ * Only the index travels. Which offer a tap answers is decided by the worker
+ * from its own `snapshot.suggestions`, because the worker is the component that
+ * owns that state: an id echoed back by the browser would be a second,
+ * unverifiable source of truth, and the offer can already have been replaced by
+ * the time a retried command lands. What makes a retry safe is the stable
+ * command `id`, which the worker deduplicates before it counts anything.
+ */
+export const SuggestionsAdopted = z.strictObject({
+  ...command,
+  type: z.literal("suggestions.adopted"),
+  payload: z.strictObject({
+    optionIndex: z.number().int().nonnegative(),
+  }),
+});
+
 export const PreferencesUpdate = z.strictObject({
   ...command,
   type: z.literal("preferences.update"),
@@ -136,7 +154,8 @@ export const SessionEnd = z.strictObject({
 });
 
 export const ClientCommand = z.discriminatedUnion("type", [
-  LearnerCommit, LearnerText, LearnerInterrupt, PreferencesUpdate, SessionSync, SessionEnd,
+  LearnerCommit, LearnerText, LearnerInterrupt, SuggestionsAdopted, PreferencesUpdate, SessionSync,
+  SessionEnd,
 ]);
 export type ClientCommand = z.infer<typeof ClientCommand>;
 
@@ -216,6 +235,7 @@ export const EVENT_DIRECTION = {
   "learner.commit": "web->worker",
   "learner.text": "web->worker",
   "learner.interrupt": "web->worker",
+  "suggestions.adopted": "web->worker",
   "preferences.update": "web->worker",
   "session.sync": "web->worker",
   "session.end": "web->worker",
@@ -234,6 +254,7 @@ export const REALTIME_EVENTS = {
   "learner.commit": LearnerCommit,
   "learner.text": LearnerText,
   "learner.interrupt": LearnerInterrupt,
+  "suggestions.adopted": SuggestionsAdopted,
   "preferences.update": PreferencesUpdate,
   "session.sync": SessionSync,
   "session.end": SessionEnd,

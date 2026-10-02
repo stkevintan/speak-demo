@@ -1,19 +1,21 @@
 # Control-plane
 
 Local-first NestJS API against contracts 0.2.0 / realtime v1. SQLite stores
-profiles, validated courses, session metadata, immutable debriefs and category
-memory. Redis stores live checkpoints, leases and the close handshake. Media
-never passes through this process.
+profiles, validated courses, session metadata, immutable debriefs, per-session
+metrics and category memory. Redis stores live checkpoints, leases and the close
+handshake. Media never passes through this process.
 
 SQLite persistence uses **Drizzle ORM and fully normalized tables**: no JSON
 columns, document serialization, or JSON extraction. See [DATABASE.md](../../docs/DATABASE.md)
-for the tables, relationships, transaction boundaries and learned/unlearn rules.
+for the tables, relationships, transaction boundaries, the progress read model
+and learned/unlearn rules.
 
-**Fresh start:** the app now opens `DATA_DIR/rehearsal-v2.sqlite`. Existing
-`rehearsal.sqlite`, `rehearsal.sqlite-wal` and `rehearsal.sqlite-shm` are untouched.
-There is no migration/import: old profiles, history and memory remain in the
-old database and do not appear in the app. YAML courses populate the new catalog
-normally. Restarting preserves data already written to the v2 database.
+**Fresh start:** the app now opens `DATA_DIR/rehearsal-v3.sqlite`. Existing
+`rehearsal.sqlite` and `rehearsal-v2.sqlite` (plus their `-wal`/`-shm` companions)
+are untouched. There is no migration/import: old profiles, history and memory
+remain in the old databases and do not appear in the app. YAML courses populate
+the new catalog normally. Restarting preserves data already written to the v3
+database.
 
 ## Local setup
 
@@ -124,6 +126,37 @@ Praise always has a truthful floor. SQLite never stores the full transcript;
 debrief corrections intentionally retain corrected quotes. Memory stores only
 category/count/time. No extra LLM call is needed for a debrief.
 
+## My progress
+
+`GET /api/progress` is a read-only, `AuthGuard`-protected projection, and the
+controller derives nothing. It gathers `CourseRepo.listCourses()` and
+`SessionRepo.attempts(userId)` and hands both to `progressView` from
+`@rehearsal/contracts`, so the API and the web client cannot disagree about what
+a goal state, an attempt mark or an ordering means. `Progress.parse` guards the
+boundary: a regression in the contract fails the request instead of being served.
+
+`attempts()` is the read model behind it. It inner-joins each session's own
+course definition and left-joins `debriefs` and `session_metrics`, because an
+attempt with no debrief or no metrics row is a real attempt that scored nothing,
+not a missing row. It reads `status = 'ended'` sessions only and orders by
+`started_at`, oldest first; `progressView` re-groups them into
+`unfinished` → `not_started` → `met`, most recent activity first within a group.
+A course nobody has touched is a `not_started` goal, not a gap.
+
+`session_metrics` holds one row per ended session — learner turns, scene
+duration, suggestions offered/adopted, nice and nit counts — keyed by session ID
+and written in the same transaction as the immutable debrief. Every value is
+copied from the worker's frozen `CloseAck` record; control-plane never recounts a
+turn or a suggestion, so the numbers a learner reads in progress cannot drift
+from the debrief they already read. A repeated completion is a no-op, so the
+metrics of the attempt that actually completed stand.
+
+`won` is the only input to a mark: `won` is `met`, otherwise `budget` is
+`missed` and `user`/`quit`/`network` is `ended_early`. A met goal keeps the
+winning attempt as `score` and never regresses; an unfinished goal reports its
+latest attempt. Unlearning withdraws the verdict and drops the goal back to
+`unfinished` without deleting the attempt.
+
 ## Validation
 
 ```sh
@@ -138,6 +171,12 @@ temporary port and stop only their own process; they never FLUSHDB a shared
 server. SQLite tests use temporary directories. Request tests use Nest's real
 module graph and fake LiveKit/Redis ports; they are not deployed smoke tests.
 No Playwright tests, Docker builds or provider calls run in this suite.
+
+Storage and request tests cover the metrics write path and the whole
+`GET /api/progress` derivation: a met goal sorting last, a `not_started` goal for
+untouched courses, a second user seeing only their own attempts, a metrics row
+surviving repeated completion, and an unlearned course falling back to
+`unfinished` while its attempt stays.
 
 Actual LiveKit/worker operation requires the integrating worker and configured
 credentials; passing isolated tests does not claim a live voice session.

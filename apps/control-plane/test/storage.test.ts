@@ -6,7 +6,7 @@ import test from "node:test";
 import { loadCourse, type SessionRecord } from "@rehearsal/contracts";
 import { SqliteStorage } from "../src/storage/sqlite.js";
 import { buildDebrief } from "../src/debrief.js";
-import { fixtureConfig } from "./fixtures.js";
+import { attemptMetrics, fixtureConfig } from "./fixtures.js";
 import { parseConfig } from "../src/config.js";
 
 test("SQLite persists onboarding, pinned courses, one debrief and once-only category memory", async () => {
@@ -32,10 +32,23 @@ test("SQLite persists onboarding, pinned courses, one debrief and once-only cate
       signal: { nice: 0, total: 0 }, goalMet: false, learnerTurns: 0, endReason: "network",
     };
     const { debrief } = buildDebrief(record, course, profile, []);
-    const first = await storage.complete("session", debrief, [{ category: "tense", count: 3 }], "network");
-    const second = await storage.complete("session", { ...debrief, won: true }, [{ category: "tense", count: 99 }], "user");
+    const first = await storage.complete("session", debrief, [{ category: "tense", count: 3 }], "network", attemptMetrics({ learnerTurns: 4, suggestionsOffered: 2, suggestionsAdopted: 1, nice: 1, nit: 1, durationMs: 120_000 }));
+    const second = await storage.complete("session", { ...debrief, won: true }, [{ category: "tense", count: 99 }], "user", attemptMetrics({ learnerTurns: 9 }));
     assert.deepEqual(first, second);
     assert.equal((await storage.get("session"))?.endReason, "network");
+    // A repeated completion is a no-op, so the metrics of the attempt that
+    // actually completed stand and the later ones are discarded with it.
+    const [attempt] = await storage.attempts("dev");
+    assert.equal(attempt?.sessionId, "session");
+    assert.equal(attempt?.courseId, course.id);
+    assert.equal(attempt?.won, false);
+    assert.equal(attempt?.endReason, "network");
+    assert.equal(attempt?.learnerTurns, 4);
+    assert.ok((attempt?.endedAt ?? 0) > 0);
+    assert.deepEqual(attempt?.metrics, {
+      durationMs: 120_000, suggestionsOffered: 2, suggestionsAdopted: 1, nice: 1, nit: 1,
+    });
+    assert.deepEqual(await storage.attempts("other"), []);
     await storage.applyPending();
     await storage.applyPending();
     assert.equal((await storage.recall("dev"))[0]?.count, 3);

@@ -9,7 +9,7 @@ import { ProfileService, MemoryService } from "./memory.js";
 import { CourseService } from "./catalog.js";
 import { SessionService } from "./sessions.js";
 import { LiveKitGateway, RoomGateway } from "./livekit.js";
-import { CourseController, ProfileController, SessionController } from "./controllers.js";
+import { CourseController, ProfileController, ProgressController, SessionController } from "./controllers.js";
 import { ApiExceptionFilter } from "./errors.js";
 
 @Global()
@@ -50,6 +50,11 @@ export class ProfileModule {}
 export class CourseModule {}
 
 @Module({
+  imports: [StorageModule, ProfileModule], controllers: [ProgressController],
+})
+export class ProgressModule {}
+
+@Module({
   imports: [StorageModule, ProfileModule, CourseModule, MemoryModule],
   providers: [SessionService, { provide: RoomGateway, useClass: LiveKitGateway }],
   controllers: [SessionController],
@@ -61,7 +66,7 @@ export class AppModule {
   static register(config: AppConfig): DynamicModule {
     return {
       module: AppModule,
-      imports: [ConfigModule.register(config), AuthModule, ProfileModule, CourseModule, SessionModule],
+      imports: [ConfigModule.register(config), AuthModule, ProfileModule, CourseModule, SessionModule, ProgressModule],
     };
   }
 }

@@ -6,7 +6,7 @@ come from `@rehearsal/contracts/generated`. No app imports another app.
 
 ## HTTP and auth
 
-The seven operations in `openapi.yaml` return **raw bodies**, not
+The operations in `openapi.yaml` return **raw bodies**, not
 `{ data, status, headers }` wrappers. GET hooks are queries; PATCH/POST hooks are
 mutations. The fetcher throws `ApiError` (`status`, `code`, `message`); the
 generator uses its exported `ErrorType` alias. Invalid error responses throw an
@@ -23,8 +23,11 @@ Origin. These are server obligations, not enforcement provided by this package.
 level atomically sets true, including Skip sending a level. It is read-only:
 `ProfilePatch` accepts only level/chinese/suggestions, rejects unknown keys, and
 permits an empty no-op patch. `StartSessionRequest` is strict `{courseId}`.
-`ApiErrorBody` is strict `{code,message}`. Shared boundary objects reject unknown
-keys. Runtime relational checks supplement generated JSON Schema.
+`ApiErrorBody` is strict `{code,message}`. `GET /api/progress` returns derived
+state only — `Progress` carries the count tiles and the goals already ordered
+`unfinished`, `not_started`, `met`, so no client sorts or counts for itself.
+Shared boundary objects reject unknown keys. Runtime relational checks supplement
+generated JSON Schema.
 
 ## LiveKit data channel
 
@@ -48,6 +51,7 @@ sequences. Neither timestamps nor Redis stream IDs replace this sequence.
 | web -> worker | learner.commit | `{turnId}`; only the current committable learner turn |
 | web -> worker | learner.text | `{text}`; nonblank, at most 4000 characters |
 | web -> worker | learner.interrupt | `{}`; cancel character playback/generation |
+| web -> worker | suggestions.adopted | `{optionIndex}`; the tapped reply, for the metrics count |
 | web -> worker | preferences.update | `{suggestions}`; live preference; web also persists ProfilePatch |
 | web -> worker | session.sync | `{afterSeq}` |
 | web -> worker | session.end | `{reason:"user"}` |
@@ -113,9 +117,11 @@ All worker envelopes are versioned with `v:1` and sessionId.
 - `WorkerLease`: workerId, increasing epoch and ISO heartbeatAt. The storage
   adapter fences old epochs; merely validating a lease does not acquire it.
 - `WorkerCheckpoint`: workerId, epoch, seq, public snapshot, **all explained**
-  identified findings, raw CoachSignal, goalMet and learnerTurns. Snapshot.cards
-  is the admitted rail subset. Raw findings are retained for debrief and memory.
-  Enforce nice <= total at runtime. Zero observations is unknown, not a zero score.
+  identified findings, raw CoachSignal, goalMet, learnerTurns and optional
+  metrics. Snapshot.cards is the admitted rail subset. Raw findings are retained
+  for debrief and memory. Enforce nice <= total at runtime. Zero observations is
+  unknown, not a zero score. Metrics ride on the checkpoint because a recovered
+  record must equal the one the worker would have sent.
 - `CloseRequest`: commandId and reason; CP/worker close requests are idempotent.
 - `CloseAck`: commandId, workerId, epoch, finalSeq, final SessionRecord. Record
   sessionId must match the envelope. Receiver also checks the outstanding close

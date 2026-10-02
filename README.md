@@ -2,6 +2,8 @@
 
 Rehearsal is a real-time voice AI English tutor for learners who understand English but hesitate in real conversations. The learner chooses a practical scene, speaks with an AI character through LiveKit, and receives quiet written coaching from a separate coach while the conversation continues.
 
+![mainpage](image-1.png)
+![my progress](image-2.png)
 ## Checking out the repository
 
 The walkthrough video `demo.mp4` (~118 MB) is stored with **Git LFS**, so `git-lfs` must be available before that file can be fetched. Set it up once per machine, before cloning:
@@ -23,6 +25,21 @@ docker compose up --build -d
 
 Open `http://localhost:5173`.
 
+## Get Started (Fly.io)
+
+The Compose stack maps onto three Fly apps in one organization — a private API
+with a SQLite volume, a private agent worker, and the nginx web app — plus a
+managed Redis. A script creates the apps, volume, database and secrets, then
+deploys all three:
+
+```sh
+fly auth login
+./deploy/fly/deploy.sh
+```
+
+The app comes up at `https://rehearsal-web.fly.dev`. See
+[`deploy/fly/README.md`](deploy/fly/README.md) for the app layout, the secret
+list, per-service redeploys, and troubleshooting.
 
 ## Features
 

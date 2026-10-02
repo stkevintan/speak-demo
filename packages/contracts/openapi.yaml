@@ -4,7 +4,8 @@ info:
   title: Rehearsal control-plane
   version: 0.2.0
   description: |
-    The seven endpoints the browser calls — `ARCHITECTURE.md` §6.2.
+    The operations the browser calls — `ARCHITECTURE.md` §6.2. Their count is
+    asserted in `src/contracts.test.ts`, so this prose cannot drift from `paths`.
 
     Written before the API, per `CODE_INSTRUCTION.md`'s contract-first rule, and
     the source of truth for the orval-generated client. Nothing else in the
@@ -26,6 +27,7 @@ tags:
   - name: me
   - name: courses
   - name: sessions
+  - name: progress
 
 paths:
   /api/me:
@@ -130,6 +132,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/Unavailable"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -255,6 +259,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/progress:
+    get:
+      tags: [progress]
+      summary: Every goal, with its attempts and state
+      description: |
+        The whole catalog, not only the courses with history: a goal the learner
+        has not started is `not_started` rather than missing, which is what lets
+        the screen show "what needs doing" without a second call.
+
+        `met` is permanent — a later worse attempt does not take it away, and no
+        field carries a trend. Goals are ordered `unfinished`, `not_started`,
+        `met`, so the client never sorts.
+
+        Assembled by `progressView` (`ARCHITECTURE.md` §5.8) from the sessions
+        table and the metrics each session reported when it ended. A session that
+        ended before it could report falls back to its wall-clock span and zeroed
+        counters rather than being hidden.
+      operationId: getProgress
+      responses:
+        "200":
+          description: Goals in screen order, plus the count tiles.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Progress"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
 components:
   securitySchemes:
     SessionCookie:
@@ -297,6 +333,8 @@ components:
       $ref: "./schema/http/SessionStart.schema.json"
     Debrief:
       $ref: "./schema/http/Debrief.schema.json"
+    Progress:
+      $ref: "./schema/http/Progress.schema.json"
     StartSessionRequest:
       $ref: "./schema/http/StartSessionRequest.schema.json"
     Error:

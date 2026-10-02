@@ -6,3 +6,7 @@ node_modules
 *.log
 apps/control-plane/.data
 .DS_Store
+# Documentation asset (~118 MB, tracked with Git LFS). Nothing in the build
+# reads it, and including it would push a large blob to the remote builder on
+# every deploy.
+demo.mp4

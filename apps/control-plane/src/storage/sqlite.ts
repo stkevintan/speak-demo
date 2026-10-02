@@ -2,13 +2,15 @@ import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { Inject, Injectable } from "@nestjs/common";
 import Database from "better-sqlite3";
-import { and, asc, desc, eq, inArray, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, notInArray, or, sql } from "drizzle-orm";
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import { Course, Debrief, EndReason, Pattern, Profile, ProfilePatch } from "@rehearsal/contracts";
+import { AttemptRow, Course, Debrief, EndReason, Pattern, Profile, ProfilePatch } from "@rehearsal/contracts";
 import { CONFIG, type AppConfig } from "../config.js";
-import { StoredSession, type PatternDelta } from "./ports.js";
+import { StoredSession, type AttemptMetrics, type PatternDelta } from "./ports.js";
 import { DATABASE_FILENAME, initializeStorage } from "./initialize.js";
-import { DeltaList, insertCourse, insertDebrief, insertSession, readCourse, readDebrief, readSession } from "./rows.js";
+import {
+  DeltaList, insertCourse, insertDebrief, insertMetrics, insertSession, readCourse, readDebrief, readSession,
+} from "./rows.js";
 import * as schema from "./schema.js";
 
 @Injectable()
@@ -27,7 +29,7 @@ export class SqliteStorage {
       this.db = drizzle(this.client, { schema });
     } catch (error) {
       this.client.close();
-      throw new Error("SQLite initialization failed; check the v2 database schema", { cause: error });
+      throw new Error("SQLite initialization failed; check the v3 database schema", { cause: error });
     }
   }
 
@@ -116,7 +118,9 @@ export class SqliteStorage {
     });
   }
 
-  async complete(id: string, debrief: Debrief, deltas: PatternDelta[], reason: EndReason): Promise<Debrief> {
+  async complete(
+    id: string, debrief: Debrief, deltas: PatternDelta[], reason: EndReason, metrics: AttemptMetrics,
+  ): Promise<Debrief> {
     return this.db.transaction((tx) => {
       const existing = tx.select().from(schema.debriefs).where(eq(schema.debriefs.sessionId, id)).get();
       if (existing) return readDebrief(tx, existing);
@@ -126,6 +130,9 @@ export class SqliteStorage {
       const validated = Debrief.parse(debrief);
       const parsedDeltas = DeltaList.parse(deltas);
       const endReason = EndReason.parse(reason);
+      // The metrics row lands in the same transaction as the debrief, so a
+      // completion that fails half way leaves neither (DATABASE.md).
+      insertMetrics(tx, id, metrics);
       insertDebrief(tx, id, validated);
       tx.insert(schema.patternUpdates).values({
         sessionId: id, userId: session.userId, seenAt: new Date().toISOString(), applied: false,
@@ -146,6 +153,43 @@ export class SqliteStorage {
       .where(and(eq(schema.sessions.userId, userId), eq(schema.sessions.status, "ended"), eq(schema.debriefs.won, true)))
       .all();
     return new Set(rows.map((row) => row.courseId));
+  }
+  /**
+   * The progress read. `won` comes from `debriefs` — the same source
+   * `learnedCourses()` uses, so the picker badge and the progress count cannot
+   * disagree — and both joins are left joins, because an attempt with no debrief
+   * or no metrics row is a real attempt that scored nothing rather than a
+   * missing one.
+   */
+  async attempts(userId: string): Promise<AttemptRow[]> {
+    const rows = this.db.select({
+      sessionId: schema.sessions.id, courseId: schema.courseDefinitions.courseId,
+      startedAt: schema.sessions.startedAt, endedAt: schema.sessions.endedAt,
+      endReason: schema.sessions.endReason, won: schema.debriefs.won,
+      learnerTurns: schema.sessionMetrics.learnerTurns, durationMs: schema.sessionMetrics.durationMs,
+      suggestionsOffered: schema.sessionMetrics.suggestionsOffered,
+      suggestionsAdopted: schema.sessionMetrics.suggestionsAdopted,
+      niceCount: schema.sessionMetrics.niceCount, nitCount: schema.sessionMetrics.nitCount,
+    }).from(schema.sessions)
+      .innerJoin(schema.courseDefinitions, eq(schema.courseDefinitions.definitionId, schema.sessions.courseDefinitionId))
+      .leftJoin(schema.debriefs, eq(schema.debriefs.sessionId, schema.sessions.id))
+      .leftJoin(schema.sessionMetrics, eq(schema.sessionMetrics.sessionId, schema.sessions.id))
+      // `complete()` is the only writer of `ended` and it always sets a reason,
+      // so this filter is an invariant restated rather than a real exclusion.
+      .where(and(
+        eq(schema.sessions.userId, userId),
+        eq(schema.sessions.status, "ended"),
+        isNotNull(schema.sessions.endReason),
+      ))
+      .orderBy(asc(schema.sessions.startedAt), asc(schema.sessions.id)).all();
+    return rows.map((row) => AttemptRow.parse({
+      sessionId: row.sessionId, courseId: row.courseId, startedAt: row.startedAt, endedAt: row.endedAt,
+      won: row.won ?? false, endReason: row.endReason, learnerTurns: row.learnerTurns ?? 0,
+      metrics: row.durationMs === null ? null : {
+        durationMs: row.durationMs, suggestionsOffered: row.suggestionsOffered ?? 0,
+        suggestionsAdopted: row.suggestionsAdopted ?? 0, nice: row.niceCount ?? 0, nit: row.nitCount ?? 0,
+      },
+    }));
   }
   async unlearnCourse(userId: string, courseId: string): Promise<void> {
     this.db.transaction((tx) => {

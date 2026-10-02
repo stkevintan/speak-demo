@@ -29,6 +29,7 @@ export default defineConfig({
             "./schema/http/CourseCard.schema.json",
             "./schema/http/SessionStart.schema.json",
             "./schema/http/Debrief.schema.json",
+            "./schema/http/Progress.schema.json",
             "./schema/http/StartSessionRequest.schema.json",
             "./schema/http/ApiErrorBody.schema.json",
           ],

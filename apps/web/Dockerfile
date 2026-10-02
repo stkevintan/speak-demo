@@ -11,7 +11,11 @@ RUN pnpm --filter @rehearsal/contracts build
 RUN pnpm --filter @rehearsal/web build
 
 FROM nginx:1.27-alpine
-COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+# Defaults to the Compose config, whose API upstream is the sibling
+# `control-plane` container. The Fly build passes deploy/fly/nginx.fly.conf,
+# which resolves the API app over the private network instead.
+ARG NGINX_CONF=apps/web/nginx.conf
+COPY ${NGINX_CONF} /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
