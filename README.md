@@ -1,5 +1,8 @@
 # Rehearsal
 
+**Try it online!**: <https://speak.divcat.net> 
+
+
 Rehearsal is a real-time voice AI English tutor for learners who understand English but hesitate in real conversations. The learner chooses a practical scene, speaks with an AI character through LiveKit, and receives quiet written coaching from a separate coach while the conversation continues.
 
 ![mainpage](image-1.png)

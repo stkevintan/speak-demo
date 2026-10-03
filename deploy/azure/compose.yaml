@@ -1,0 +1,77 @@
+# Rehearsal on a single Docker host, running the images that
+# .github/workflows/docker-publish.yml pushes to GHCR. Nothing is built here,
+# so the host needs no Node toolchain, no pnpm store, and no repo checkout.
+#
+# Install: copy this directory to /opt/stacks/rehearsal, put a .env beside it,
+# then `sudo docker compose up -d`.
+#
+# REHEARSAL_TAG pins which GHCR build to run (latest, master, or sha-<short>).
+# Set it in .env to make a rollback a one-line change.
+name: rehearsal
+
+services:
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # The published web image ships apps/web/nginx.conf verbatim, and that file
+  # proxies /api/* to the literal hostname `control-plane`. Keep this service
+  # name or the web container answers 502 on every API call.
+  control-plane:
+    image: ghcr.io/stkevintan/speak-demo-control-plane:${REHEARSAL_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # These are container-internal facts, so they override .env rather than
+      # being configured there.
+      HOST: 0.0.0.0
+      PORT: 3000
+      REDIS_URL: redis://redis:6379
+      DATA_DIR: /app/data
+      COURSES_DIR: /app/courses
+      # Must equal the origin the browser actually uses -- the Cloudflare
+      # hostname, not a localhost URL. The auth guard rejects any request whose
+      # Origin header is not in this list.
+      WEB_ORIGIN: ${WEB_ORIGIN:?set WEB_ORIGIN in the .env beside this file}
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - control-plane-data:/app/data
+    expose:
+      - "3000"
+
+  agent-worker:
+    image: ghcr.io/stkevintan/speak-demo-agent-worker:${REHEARSAL_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+      control-plane:
+        condition: service_started
+
+  web:
+    image: ghcr.io/stkevintan/speak-demo-web:${REHEARSAL_TAG:-latest}
+    restart: unless-stopped
+    # Loopback only. Cloudflare Tunnel is the intended ingress, and it runs on
+    # this host, so nothing needs to reach this port from off-box.
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
+    depends_on:
+      control-plane:
+        condition: service_started
+
+volumes:
+  redis-data:
+  control-plane-data:
